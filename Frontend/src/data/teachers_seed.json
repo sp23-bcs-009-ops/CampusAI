@@ -1,0 +1,507 @@
+[
+  {
+    "name": "Muazzam Maqsood",
+    "department": "CS",
+    "position": "Tenured Associate Professor / HoD"
+  },
+  {
+    "name": "Farman Ali Khan",
+    "department": "CS",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Khalid Mehmood Awan",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Farhan Aadil",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhammad Tahir",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhammad Sardaraz",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Sadaf Yasmin",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Zahoor-ur-Rehman",
+    "department": "CS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhmmad Shahzad Faisal",
+    "department": "CS",
+    "position": "Associate Professor"
+  },
+  {
+    "name": "Bilal Haider",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Saleem Khan",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Sharif",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Shahzad Rizwan",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Yaser Ali Shah",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Armughan Ali",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Fahad Khan",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Tahira Sadaf",
+    "department": "CS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Irshad Ullah",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Kamran",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Kamran",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Umar Zia",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Anam Moin",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Babar Shazad",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Faiza Khan",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Fouzia Jabeen",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Marwa Khanam",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Maryam Bibi",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Mehreen Wahab",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Fawad",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Jamal Ahmed",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Qasim Khan",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Waseem Khan",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Salah Ud Din",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Shanza Zafar",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Syed Usman Anwar",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Tahir Ahmad",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Tahreem Khalil",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Waqas Ahmed",
+    "department": "CS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Imran Malik",
+    "department": "MS",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Shabir Hyder",
+    "department": "MS",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Saddam Hussain",
+    "department": "MS",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Faisal Nawaz",
+    "department": "MS",
+    "position": "Professor"
+  },
+  {
+    "name": "Asim Anwar",
+    "department": "MS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhammad Ayub",
+    "department": "MS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Noman Khan",
+    "department": "MS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Syed Asim Shah",
+    "department": "MS",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Ameena Arshad",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Usman Shah",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Adeel Saqib",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Ehtesham Ul Mujeeb",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Hamid Masud",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Usman",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Yousaf Khan",
+    "department": "MS",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Imran Bashir",
+    "department": "MS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Narmeen Khalid",
+    "department": "MS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Nazish Yameen Malak",
+    "department": "MS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Salman Yahya",
+    "department": "MS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Sanober Tariq",
+    "department": "MS",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Khalid",
+    "department": "MS",
+    "position": "Research Associate"
+  },
+  {
+    "name": "Sameen Khalid",
+    "department": "MS",
+    "position": "Research Associate"
+  },
+  {
+    "name": "Asif Waheed",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "HOD / Tenured Associate Professor"
+  },
+  {
+    "name": "Aamir Ali",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Professor"
+  },
+  {
+    "name": "Muhammad Awais",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Ali Imran",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Atiq ur Rehman",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhammad Numan",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Muhammad Ozair",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Takasar Hussain",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Maimona Rafiq",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Sohail Ahmad",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Farooq Ahmed Shah",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Associate Professor"
+  },
+  {
+    "name": "Muhammad Zeb",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Associate Professor"
+  },
+  {
+    "name": "Muhammad Sulaiman",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Noor Muhammad",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Shahid Hussain",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Adil Ihsan",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Atta Ullah",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Sania Irum",
+    "department": "Mathematics Department, Attock Campus",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Laiq Khan",
+    "department": "EE",
+    "position": "Professor"
+  },
+  {
+    "name": "Ata Ur Rehman",
+    "department": "EE",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Ihtesham Jadoon",
+    "department": "EE",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Mubashir Rehman",
+    "department": "EE",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Yasir Muhammad",
+    "department": "EE",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Babar Sattar Khan",
+    "department": "EE",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Kashif Ejaz Jatoi",
+    "department": "EE",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Rizwan Ullah",
+    "department": "EE",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Abbas Ali Shah",
+    "department": "EE",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Assad Hafiz",
+    "department": "EE",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Muhammad Faizan Malik",
+    "department": "EE",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Hassan Saeed Qazi",
+    "department": "EE",
+    "position": "Lab Engineer"
+  },
+  {
+    "name": "Malik Naveed Ahmed",
+    "department": "EE",
+    "position": "Lab Engineer"
+  },
+  {
+    "name": "Dr. Shujaat Ali Khan Tanoli",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Professor / HOD"
+  },
+  {
+    "name": "Saeed Ehsan Awan",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Tenured Professor"
+  },
+  {
+    "name": "Faiza Nawaz",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Tenured Associate Professor"
+  },
+  {
+    "name": "Akbar Ali Khan",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Farwida Javed",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Muhammad Ismail Khan",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Qazi Zia Ullah",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Assistant Professor"
+  },
+  {
+    "name": "Rabia Khatoon",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Raheel Zaman",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Lecturer"
+  },
+  {
+    "name": "Abdul Ahad Khan",
+    "department": "Computer Engineering Department, Attock Campus",
+    "position": "Lab Engineer"
+  }
+]

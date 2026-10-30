@@ -1,0 +1,912 @@
+{
+  "dataset_name": "COMSATS University Islamabad — Attock Campus Knowledge Pack",
+  "dataset_id": "comsats_attock_official_seed_2026_10_24",
+  "schema_version": "1.0.0",
+  "compiled_date": "2026-10-24",
+  "intended_use": "Seed knowledge data for CampusAI chatbot retrieval (RAG/search).",
+  "source_policy": "Prefer official COMSATS University Islamabad domains and official university guides/news only.",
+  "primary_requested_site": "https://attock.comsats.edu.pk/",
+  "scope_note": "This is a curated seed pack based on accessible/indexed official sources, not a full crawl of the requested homepage because that host returned HTTP 403 in the crawler environment.",
+  "usage_rules": [
+    "Do not treat archived events as upcoming events.",
+    "Do not present 2025-26 prospectus statistics as live 2026 statistics.",
+    "For current class schedules, teachers employed in CampusAI, user profile details, live events, notices, emergencies, and schedule mode, use CampusAI Firestore as the live source of truth.",
+    "Use this web knowledge pack for university website facts, departments, published programs, general contacts, policies and historical news only.",
+    "Always include or retain source_url and source freshness metadata when retrieving an answer.",
+    "If two official pages disagree, show the disagreement or refer the user to the current campus admissions/department office; do not silently guess.",
+    "A program mentioned on a university-wide page is not confirmed as offered at Attock unless an Attock-specific page or current admissions guide supports it.",
+    "Do not index the website_access_limitation record as a university fact; it is dataset metadata."
+  ],
+  "source_access_notes": [
+    {
+      "url": "https://attock.comsats.edu.pk/",
+      "status": "HTTP 403 reported by user/Cursor and current research environment",
+      "effect": "Direct live crawl of the new homepage and sitemap was not possible."
+    },
+    {
+      "url": "https://ww2.comsats.edu.pk/",
+      "status": "Official legacy Attock-specific pages available through indexed content",
+      "effect": "Used as seed sources; some content may be older or page-template inconsistent."
+    },
+    {
+      "url": "https://ww2.comsats.edu.pk/*_atk/Faculty.aspx",
+      "status": "Official department faculty pages were accessible/indexed; page snapshots vary in freshness",
+      "effect": "Names and role titles are useful leads but may be outdated. For current schedules use Firestore; for current employment status verify the official profile."
+    }
+  ],
+  "document_count": 35,
+  "documents": [
+    {
+      "id": "campus_overview_2025_26",
+      "title": "Attock Campus overview and published statistics",
+      "category": "campus_overview",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "COMSATS University Islamabad (CUI) lists Attock as one of its physical campuses. The official Undergraduate Prospectus 2025–26 gives the Attock campus statistics as: established in 2004; 1,805 students; 6,192 graduates; and 102 faculty. These figures are from the 2025–26 prospectus and should not be described as live counts for 2026. For current enrolment, ask the campus administration or consult a newer official publication.",
+      "source": {
+        "title": "Undergraduate Prospectus 2025–26",
+        "url": "https://ww2.comsats.edu.pk/ro/Prospectus/UG_Prospectus/Undergraduate-Prospectus-2025-26.pdf",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2025-26",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_guide_2025_26",
+        "notes": "Period-specific statistics; do not present as real-time data."
+      },
+      "keywords": [
+        "Attock Campus",
+        "campus facts",
+        "students",
+        "graduates",
+        "faculty",
+        "established 2004"
+      ]
+    },
+    {
+      "id": "campus_contact_general",
+      "title": "Attock Campus location and general department contact",
+      "category": "contact",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "Official Attock department pages place COMSATS University Islamabad, Attock Campus near Officers Colony, Kamra Road, Attock, Pakistan. The Computer Science department contact page lists phone +92-57-9316330-1 and fax 057-9316329. A separate official campus contact directory lists 057-9049300 for Dr. Moazzam Maqsood, Associate Professor / Head of Department of Computer Science. These are different published contact entries; use the relevant department/contact context and suggest confirming current phone details if a number fails.",
+      "source": {
+        "title": "Department of Computer Science — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": "A different official contact directory lists 057-9049300 for the Computer Science HoD: https://ww2.comsats.edu.pk/LifeSkills/Contact. Contact details can change."
+      },
+      "keywords": [
+        "address",
+        "location",
+        "contact",
+        "phone",
+        "fax",
+        "Kamra Road",
+        "Officers Colony"
+      ]
+    },
+    {
+      "id": "university_identity_faq",
+      "title": "University identity, recognition and semester system",
+      "category": "university_faq",
+      "campus_scope": "CUI-wide",
+      "language": "en",
+      "content": "CUI stands for COMSATS University Islamabad. The official admission FAQ describes CUI as a federally chartered public-sector university recognized by the Higher Education Commission (HEC) of Pakistan. The FAQ describes a semester system with Spring running February–June and Fall running September–January. Treat semester dates as the general pattern, not confirmation of a specific exam, registration, or class date; use an official current academic calendar for exact dates.",
+      "source": {
+        "title": "CUI Admissions — Frequently Asked Questions",
+        "url": "https://ww2.comsats.edu.pk/admissionoffice/faqs.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faq_page",
+        "notes": "General university information, not Attock-specific. Verify calendar dates from a current official notice."
+      },
+      "keywords": [
+        "COMSATS",
+        "CUI",
+        "public sector",
+        "HEC",
+        "semester system",
+        "Spring",
+        "Fall"
+      ]
+    },
+    {
+      "id": "university_campuses",
+      "title": "CUI campus list",
+      "category": "university_faq",
+      "campus_scope": "CUI-wide",
+      "language": "en",
+      "content": "The official CUI admissions FAQ lists the Islamabad, Lahore, Abbottabad, Sahiwal, Vehari, Wah, and Attock campuses. The Virtual Campus is also mentioned in official university publications. Campus availability and programs differ by location. When users ask what is offered at Attock, do not use another campus's program list as if it were Attock's.",
+      "source": {
+        "title": "CUI Admissions — Frequently Asked Questions",
+        "url": "https://ww2.comsats.edu.pk/admissionoffice/faqs.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faq_page",
+        "notes": ""
+      },
+      "keywords": [
+        "campuses",
+        "campus list",
+        "Attock",
+        "Islamabad",
+        "Lahore",
+        "Abbottabad",
+        "Sahiwal",
+        "Vehari",
+        "Wah",
+        "Virtual Campus"
+      ]
+    },
+    {
+      "id": "university_rector_2026",
+      "title": "Rector of COMSATS University Islamabad",
+      "category": "leadership",
+      "campus_scope": "CUI-wide",
+      "language": "en",
+      "content": "The central COMSATS University Islamabad website identifies Prof. Dr. Raheel Qamar, T.I., as Rector. A question asking for the university “president” should not be answered by silently renaming the Rector role. Explain that the official page identifies the Rector as Prof. Dr. Raheel Qamar, T.I.; if the user means the Chancellor or another office, clarify that role and verify it from an official governance page.",
+      "source": {
+        "title": "Rector — COMSATS University Islamabad",
+        "url": "https://islamabad.comsats.edu.pk/Website/rector-comsats",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "Checked 2026-10-24",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_central_leadership_page",
+        "notes": "CUI-wide leadership page. This does not establish who holds any distinct Chancellor or President role."
+      },
+      "keywords": [
+        "rector",
+        "university leadership",
+        "Prof. Dr. Raheel Qamar",
+        "Rector CUI"
+      ]
+    },
+    {
+      "id": "department_index_attock",
+      "title": "Departments listed on Attock campus department site",
+      "category": "departments",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "An official Attock department page links to these departmental sites: Computer Science, Electrical Engineering, Computer Engineering, Management Sciences, and Mathematics. Treat these as departments linked from the reviewed site page, not necessarily a complete official organisational chart. Confirm any additional department or program against a current Attock campus prospectus.",
+      "source": {
+        "title": "Department of Management Sciences — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/ms_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": "The legacy departmental website links back to https://attock.comsats.edu.pk/. The new homepage returned 403 to the crawler, so this dataset uses accessible official legacy pages."
+      },
+      "keywords": [
+        "departments",
+        "department list",
+        "Computer Science",
+        "Electrical Engineering",
+        "Computer Engineering",
+        "Management Sciences",
+        "Mathematics"
+      ]
+    },
+    {
+      "id": "cs_department",
+      "title": "Department of Computer Science: overview, programs and contact",
+      "category": "department",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The Department of Computer Science at CUI Attock says its mission is to provide degree programs and courses in Information Sciences and Technology, combining core curriculum with demanding courses and practical/laboratory learning. The department page lists undergraduate programs: BS Computer Science, BS Software Engineering, and BS Artificial Intelligence; graduate programs: MS Computer Science and PhD Computer Science. The reviewed department page identifies Dr. Muazzam Maqsood as Head of Department. Location: Computer Sciences, Academic Block II; near Officers Colony, Kamra Road, Attock, Pakistan. Department phone: +92-57-9316330-1; fax: 057-9316329. Current program offerings should be confirmed against the active admission notice.",
+      "source": {
+        "title": "Department of Computer Science — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "computer science",
+        "BSCS",
+        "BS Software Engineering",
+        "BS Artificial Intelligence",
+        "MS Computer Science",
+        "PhD Computer Science",
+        "Dr. Muazzam Maqsood",
+        "contact"
+      ]
+    },
+    {
+      "id": "cs_programs",
+      "title": "Computer Science programs at Attock",
+      "category": "programs",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Science page lists BS Computer Science, BS Software Engineering, and BS Artificial Intelligence at undergraduate level, plus MS Computer Science and PhD Computer Science at graduate level. Do not add Cyber Security, Data Science, or other programs from another campus unless an Attock-specific official source confirms them.",
+      "source": {
+        "title": "Computer Science — Academic Programs, Attock",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/academic-programs.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_programs_page",
+        "notes": ""
+      },
+      "keywords": [
+        "programs",
+        "BSCS",
+        "BS(SE)",
+        "BS(AI)",
+        "MS CS",
+        "PhD CS"
+      ]
+    },
+    {
+      "id": "cs_research_groups",
+      "title": "Computer Science research groups",
+      "category": "research",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Science research page lists groups including PRiDE (Pattern Recognition, Image Intelligence, and Data Engineering), InnoCloudX (distributed and cloud computing), and ICNet (communications and network technologies). PRiDE's described research includes artificial intelligence, pattern recognition, image processing, machine learning, data engineering, and natural language processing. This is research-group information, not a promise that every subject is offered as a degree program.",
+      "source": {
+        "title": "Computer Science — Research Groups, Attock",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/research-groups.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_research_page",
+        "notes": ""
+      },
+      "keywords": [
+        "research",
+        "PRiDE",
+        "InnoCloudX",
+        "ICNet",
+        "AI",
+        "machine learning",
+        "networking"
+      ]
+    },
+    {
+      "id": "computer_engineering_department",
+      "title": "Department of Computer Engineering",
+      "category": "department",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Engineering site states that BS Computer Engineering began in 2012 under Electrical Engineering, later operated under Electrical and Computer Engineering, and was formally separated into Computer Engineering and Electrical Engineering in 2025. The current page identifies Engr. Prof. Dr. Shujaat Ali Khan Tanoli as Head of Department. Published programs: BS Computer Engineering; MS Computer Engineering; MS Artificial Intelligence Engineering; and PhD Computer Engineering. Contact listed: +92-57-9049273; the page also lists +92-57-9316330-1 and fax 057-9316329. Use the department's current page for updates.",
+      "source": {
+        "title": "Department of Computer Engineering — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/ce_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "computer engineering",
+        "BSCE",
+        "MS Computer Engineering",
+        "MS AI Engineering",
+        "PhD Computer Engineering",
+        "Shujaat Ali Khan Tanoli"
+      ]
+    },
+    {
+      "id": "computer_engineering_programs",
+      "title": "Computer Engineering programs at Attock",
+      "category": "programs",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The Attock Computer Engineering program page lists BS Computer Engineering, MS Computer Engineering, MS Artificial Intelligence Engineering, and PhD Computer Engineering. The page notes the department became independent in 2025 after separation from Electrical Engineering. For admissions eligibility, accreditation, intake, or current open/closed status, check the linked live program/admission page rather than inferring from the degree list.",
+      "source": {
+        "title": "Computer Engineering — Academic Programs, Attock",
+        "url": "https://ww2.comsats.edu.pk/ce_atk/academic-programs.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_programs_page",
+        "notes": ""
+      },
+      "keywords": [
+        "programs",
+        "BSCE",
+        "MSCE",
+        "MS Artificial Intelligence Engineering",
+        "PhD"
+      ]
+    },
+    {
+      "id": "electrical_engineering_department",
+      "title": "Department of Electrical Engineering",
+      "category": "department",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Electrical Engineering page states that the department was established in 2007 and focuses on academic and research excellence, curriculum, research, innovation, and industrial liaison. The page identifies Dr. Yasir Muhammad as Head of Department. Published programs: BS Electrical Engineering, MS Electrical Engineering, and PhD Electrical Engineering. The departmental page lists contact phone +92-57-9316330-340, fax 057-9316329, and a location/contact section that appears to reuse Computer Engineering wording. For a reliable contact, use the main Attock campus directory if the departmental contact details seem inconsistent.",
+      "source": {
+        "title": "Department of Electrical Engineering — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/ee_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": "Some address text on the source page appears inconsistent with the department heading; verify address before presenting it."
+      },
+      "keywords": [
+        "electrical engineering",
+        "BS EE",
+        "MS EE",
+        "PhD EE",
+        "Dr Yasir Muhammad",
+        "established 2007"
+      ]
+    },
+    {
+      "id": "electrical_engineering_programs",
+      "title": "Electrical Engineering programs at Attock",
+      "category": "programs",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The Attock Electrical Engineering academic-programs page lists BS Electrical Engineering at undergraduate level and MS Electrical Engineering plus PhD Electrical Engineering at graduate level. Do not infer availability of other electrical specializations unless the Attock-specific source lists them.",
+      "source": {
+        "title": "Electrical Engineering — Academic Programs, Attock",
+        "url": "https://ww2.comsats.edu.pk/ee_atk/academic-programs.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_programs_page",
+        "notes": ""
+      },
+      "keywords": [
+        "programs",
+        "BS Electrical Engineering",
+        "MS Electrical Engineering",
+        "PhD Electrical Engineering"
+      ]
+    },
+    {
+      "id": "mathematics_department",
+      "title": "Department of Mathematics overview and programs",
+      "category": "department",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Mathematics page states that the department was established in 2011. It lists the historical program expansion: MSc Mathematics in 2011, MS Mathematics in 2012, BS Mathematics in 2019, PhD Mathematics in 2022, and BS Mathematics with Data Science in 2025. Its current program list includes BS Mathematics, BS Mathematics with Data Science, MS Mathematics, and PhD Mathematics. The page identifies Dr. Asif Waheed as Head of Department and reports 19 faculty members, including 17 PhD scholars. The count and leadership may change; use the page timestamp and verify for current employment details.",
+      "source": {
+        "title": "Department of Mathematics — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/math_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "mathematics",
+        "BS Mathematics",
+        "BS Mathematics with Data Science",
+        "MS Mathematics",
+        "PhD Mathematics",
+        "Dr Asif Waheed",
+        "established 2011"
+      ]
+    },
+    {
+      "id": "mathematics_research",
+      "title": "Mathematics research and subject areas",
+      "category": "research",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The Attock Mathematics department describes subject expertise including algebra, analysis, applied mathematics, graph theory, mathematical biology, numerical analysis, probability, fluid dynamics, and data science. It presents mathematics as relevant to computing, data science, artificial intelligence, engineering, medicine, economics, management sciences, and social sciences. These are described research and subject areas; they are not all degree programs.",
+      "source": {
+        "title": "Mathematics — About Us, Attock",
+        "url": "https://ww2.comsats.edu.pk/math_atk/about-us.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "mathematics research",
+        "algebra",
+        "analysis",
+        "graph theory",
+        "numerical analysis",
+        "probability",
+        "data science"
+      ]
+    },
+    {
+      "id": "management_sciences_department",
+      "title": "Department of Management Sciences overview and programs",
+      "category": "department",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Management Sciences page describes the department as one of the campus's pioneering departments, established with the campus in 2004 and focused on academic excellence, quality education, research, and student development. The page identifies Dr. Faisal Shazhad as Head of Department. Its displayed program list is BS Business Administration, BS Accounting and Finance, BS Business Data Analytics, BS English, MS Management Science, and PhD Management Sciences. Note: the page places BS English under Management Sciences; do not silently reclassify it. If asked whether a program is currently admitting students, direct the user to the current admission notice or campus admission office.",
+      "source": {
+        "title": "Department of Management Sciences — Attock Campus",
+        "url": "https://ww2.comsats.edu.pk/ms_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": "The BS English listing under this page should be confirmed with admissions before giving definitive department ownership or admission advice."
+      },
+      "keywords": [
+        "management sciences",
+        "BS Business Administration",
+        "Accounting and Finance",
+        "Business Data Analytics",
+        "BS English",
+        "MS Management Science",
+        "PhD Management Sciences",
+        "Dr Faisal Shazhad"
+      ]
+    },
+    {
+      "id": "management_sciences_contact",
+      "title": "Management Sciences Attock contact",
+      "category": "contact",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Management Sciences page lists the location as COMSATS University Islamabad, Attock Campus, near Officers Colony, Kamra Road, Attock, Pakistan, and phone +92-57-9316330 extension 250. The page exposes an official email link, but this knowledge pack does not store the contact address because the web text extraction masked it. Use the live official page for the current email.",
+      "source": {
+        "title": "Management Sciences — Attock Campus contact",
+        "url": "https://ww2.comsats.edu.pk/ms_atk/default.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "management sciences contact",
+        "phone",
+        "extension 250",
+        "Kamra Road"
+      ]
+    },
+    {
+      "id": "humanities_scope",
+      "title": "Humanities Department campus scope",
+      "category": "department",
+      "campus_scope": "CUI-wide; Attock is included",
+      "language": "en",
+      "content": "An official CUI Humanities page says the department has a presence across seven CUI campuses, explicitly including Attock. The source describes subject areas such as English, Psychology, Media and Communication Studies, and related fields. The material retrieved did not establish the complete current Attock-specific program list. Do not tell a user that a specific Humanities degree is offered at Attock unless an Attock-specific admission source confirms it.",
+      "source": {
+        "title": "Humanities Department — Chairperson message",
+        "url": "https://ww2.comsats.edu.pk/hum_vhr/message_from_chairperson.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_university_department_page",
+        "notes": "The page is campus-wide and not an Attock-specific program availability list."
+      },
+      "keywords": [
+        "humanities",
+        "English",
+        "Psychology",
+        "Media and Communication Studies",
+        "Attock"
+      ]
+    },
+    {
+      "id": "admissions_contact_2025_26",
+      "title": "Attock graduate admissions contact (Guide 2025–26)",
+      "category": "admissions_contact",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official CUI Graduate Programs Admission Guide 2025–26 lists Mr. Muhammad Javed as In-Charge Admissions and Student Affairs for Attock. The guide gives phone 057-9049159 and 0315-5504184, and email ic_admissions@cuiatk.edu.pk. Because this is the 2025–26 guide, contact details should be treated as guide-era information and checked against the current admission page before relying on them.",
+      "source": {
+        "title": "Graduate Programs Admission Guide 2025–26",
+        "url": "https://ww2.comsats.edu.pk/ro/Prospectus/GR_Prospectus/Graduate-Guide-2025-26.pdf",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2025-26",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_guide_2025_26",
+        "notes": "Published in the 2025–26 guide; verify before treating as current."
+      },
+      "keywords": [
+        "admissions",
+        "graduate admissions",
+        "Muhammad Javed",
+        "phone",
+        "ic_admissions@cuiatk.edu.pk"
+      ]
+    },
+    {
+      "id": "student_academic_portals",
+      "title": "Academic resources and CU Online",
+      "category": "student_resources",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The Attock Management Sciences academic resources page describes CU Online as a central system for academic and examination information, with faculty maintaining assessments and marks and students/parents accessing registered-course and examination progress. It lists a student CU Online link at https://cuonline.ciit-attock.edu.pk:8089/ and says it opens only when announced. It also points faculty to https://faculty.comsats.edu.pk/. These services are distinct from CampusAI and may require official credentials or availability windows.",
+      "source": {
+        "title": "Management Sciences — Academic Resources, Attock",
+        "url": "https://ww2.comsats.edu.pk/ms_atk/academic-resources.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "CU Online",
+        "student portal",
+        "faculty portal",
+        "examinations",
+        "registered courses",
+        "academic resources"
+      ]
+    },
+    {
+      "id": "humanities_general_programs",
+      "title": "Humanities subject areas and programs (campus availability must be checked)",
+      "category": "programs",
+      "campus_scope": "CUI-wide; Attock availability not established here",
+      "language": "en",
+      "content": "CUI's official undergraduate guide describes Humanities programs including BS English, BS Psychology, and BS Media and Communication Studies, with campus availability varying by degree. The retrieved guide text did not reliably confirm each one for Attock. Answer with the program name and official source only when campus availability is clearly indicated; otherwise tell the user to check the current Attock admission guide.",
+      "source": {
+        "title": "Undergraduate Guide 2024–25",
+        "url": "https://ww2.comsats.edu.pk/ro/Prospectus/UG_Prospectus/Undergraduate-Guide-2024-25.pdf",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2024-25",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_guide_2024_25",
+        "notes": "Older 2024–25 guide; not authoritative for current admissions."
+      },
+      "keywords": [
+        "Humanities",
+        "English",
+        "Psychology",
+        "Media and Communication Studies",
+        "program availability"
+      ]
+    },
+    {
+      "id": "campus_event_silver_jubilee",
+      "title": "Historical event: Silver Jubilee at CUI Attock",
+      "category": "event_archive",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official CUI events/photo gallery lists “Silver Jubilee Celebrations at CUI Attock” on December 26, 2025. This is a historical event, not an upcoming event. If asked for upcoming campus events, do not use this record as a future event; check the live Firebase events collection or a newer official announcement.",
+      "source": {
+        "title": "CUI Events / Photo Gallery",
+        "url": "https://ww2.comsats.edu.pk/photogallery/Events.aspx?page=3",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2025-12-26",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_event_archive",
+        "notes": "Archived historical event; not upcoming."
+      },
+      "keywords": [
+        "Silver Jubilee",
+        "Attock event",
+        "December 26 2025",
+        "campus event"
+      ]
+    },
+    {
+      "id": "mathematics_event_archive",
+      "title": "Historical events listed by the Attock Mathematics department",
+      "category": "event_archive",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Mathematics Attock events archive lists the Mathematics Quiz Competition on July 30, 2024; Alumni Meet on November 17, 2023; 24th Convocation of COMSATS University Islamabad, Attock Campus on November 2, 2023; one-day tent-pegging championship on March 9, 2023; and Mehfil-e-Mushaira on March 3, 2023. These are historical archive entries, not upcoming events. Current/future events should come from the current campus announcement or the CampusAI Firestore events collection.",
+      "source": {
+        "title": "Mathematics — Latest Events archive, Attock",
+        "url": "https://ww2.comsats.edu.pk/math_atk/events.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_event_archive",
+        "notes": "Archive entries from 2023–2024; do not present as upcoming."
+      },
+      "keywords": [
+        "Mathematics Quiz",
+        "Alumni Meet",
+        "convocation",
+        "tent-pegging",
+        "Mehfil-e-Mushaira",
+        "past events"
+      ]
+    },
+    {
+      "id": "university_news_cwur_2026",
+      "title": "CUI-wide news: CWUR 2026 ranking announcement",
+      "category": "university_news",
+      "campus_scope": "CUI-wide",
+      "language": "en",
+      "content": "CUI's official Quality Enhancement Cell news page published an item dated June 8, 2026 stating that COMSATS University Islamabad was ranked No. 1 in Pakistan in the CWUR World University Rankings 2026, with a global rank of 635 and a research rank of 605. Attribute this as a claim reported by CUI's own news page; it is university-wide and not an Attock-specific ranking.",
+      "source": {
+        "title": "Quality Enhancement Cell — News",
+        "url": "https://ww2.comsats.edu.pk/qec/news.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2026-06-08",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_university_news",
+        "notes": "University-wide announcement; source is CUI QEC."
+      },
+      "keywords": [
+        "CWUR",
+        "ranking",
+        "CUI news",
+        "2026",
+        "research rank"
+      ]
+    },
+    {
+      "id": "university_news_qec_visits_2026",
+      "title": "CUI-wide news: Quality Enhancement Cell campus visits in May 2026",
+      "category": "university_news",
+      "campus_scope": "CUI-wide including Attock",
+      "language": "en",
+      "content": "CUI's official Quality Enhancement Cell news page reports that QEC conducted annual self-review visits to Lahore, Sahiwal, Vehari, Attock, Abbottabad, Wah, and Islamabad during 4–14 May 2026 under the PREE framework, focusing on reviews for the yearly progress report to HEC. This is a past university-wide activity, not a current scheduled event.",
+      "source": {
+        "title": "Quality Enhancement Cell — News",
+        "url": "https://ww2.comsats.edu.pk/qec/news.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "2026-05-04 to 2026-05-14",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_university_news",
+        "notes": "Past activity; not an upcoming event."
+      },
+      "keywords": [
+        "QEC",
+        "PREE",
+        "self-review",
+        "Attock Campus",
+        "May 2026"
+      ]
+    },
+    {
+      "id": "university_news_fall_2026",
+      "title": "CUI-wide admissions notice: Fall 2026",
+      "category": "admissions_news",
+      "campus_scope": "CUI-wide; Attock program availability requires confirmation",
+      "language": "en",
+      "content": "The central CUI website displayed “Admissions Open — Fall 2026” in its news section when checked on October 24, 2026. This is a university-wide page and does not by itself confirm which programs are open at Attock. For a specific course or campus, direct users to the official Attock admissions source.",
+      "source": {
+        "title": "COMSATS University Islamabad — News",
+        "url": "https://islamabad.comsats.edu.pk/Website/comsats-news",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": "Displayed 2026",
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_central_news_page",
+        "notes": "University-wide page; verify Attock-specific program/intake before giving advice."
+      },
+      "keywords": [
+        "admissions",
+        "Fall 2026",
+        "CUI news"
+      ]
+    },
+    {
+      "id": "attock_programs_computer_eng_accreditation",
+      "title": "Computer Engineering program accreditation statement",
+      "category": "accreditation",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Engineering About page states that the BS Computer Engineering program received PEC accreditation for three batches with a validity period of three years. The retrieved page does not supply enough detail in this knowledge record to identify the exact batch years or expiry date. If a user asks whether their individual batch is accredited, do not generalize; refer them to the official department/accreditation page or admissions office.",
+      "source": {
+        "title": "Computer Engineering — About Us, Attock",
+        "url": "https://ww2.comsats.edu.pk/ce_atk/about-us.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": "Batch-specific accreditation details are not included in the retrieved text; verify current validity before advising."
+      },
+      "keywords": [
+        "PEC",
+        "accreditation",
+        "Computer Engineering",
+        "BSCE"
+      ]
+    },
+    {
+      "id": "cs_department_contact_supervisor",
+      "title": "Computer Science head and research summary",
+      "category": "leadership",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Computer Science Attock page identifies Dr. Muazzam Maqsood as Head of Department and describes research interests across e-learning, data mining, web mining, image processing, networks, Internet of Things, artificial intelligence, and ant colony optimization. The page lists the department at Computer Sciences, Academic Block II and gives phone +92-57-9316330-1. This is a departmental role listing, not the Rector or a university-wide president role.",
+      "source": {
+        "title": "Computer Science — Head of Department message",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/head-of-the-department-message.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_department_page",
+        "notes": ""
+      },
+      "keywords": [
+        "Dr Muazzam Maqsood",
+        "Head of Department",
+        "research interests",
+        "AI",
+        "IoT",
+        "data mining"
+      ]
+    },
+    {
+      "id": "central_governance_role_note",
+      "title": "How to answer questions about university leadership titles",
+      "category": "answering_guidance",
+      "campus_scope": "CUI-wide",
+      "language": "en",
+      "content": "When asked who is the university president, do not invent a “President” title from a page that identifies a Rector. The current central CUI leadership page reviewed for this dataset identifies Prof. Dr. Raheel Qamar, T.I., as Rector. If the user explicitly means the Chancellor, Pro-Rector, or campus In-Charge, search the corresponding official governance page and distinguish the roles. Always cite the title and source used.",
+      "source": {
+        "title": "Rector — COMSATS University Islamabad",
+        "url": "https://islamabad.comsats.edu.pk/Website/rector-comsats",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_central_leadership_page",
+        "notes": ""
+      },
+      "keywords": [
+        "president",
+        "rector",
+        "chancellor",
+        "pro-rector",
+        "campus in-charge",
+        "leadership"
+      ]
+    },
+    {
+      "id": "website_access_limitation",
+      "title": "Official Attock homepage access limitation for this collection",
+      "category": "source_access_note",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The requested official website is https://attock.comsats.edu.pk/. The user's Cursor cloud run and this research environment reported HTTP 403 for the homepage, robots.txt, and sitemap paths. Therefore this pack is not a complete live crawl of that host. It is a curated seed dataset built from publicly indexed pages on official COMSATS University domains, especially legacy Attock-specific department paths under ww2.comsats.edu.pk/*_atk/, plus official CUI-wide publications. Some official pages may be older or may contain inconsistent templates. Keep source URLs and freshness metadata, do not label this dataset as a complete scrape, and replace/refresh records when access is available.",
+      "source": {
+        "title": "Official Attock Campus website",
+        "url": "https://attock.comsats.edu.pk/",
+        "publisher": "COMSATS University Islamabad (official web domain or official university publication)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "access_limitation",
+        "notes": "Do not use this record as factual university content. It describes the dataset limitation."
+      },
+      "keywords": [
+        "403",
+        "scraping",
+        "website blocked",
+        "source provenance",
+        "refresh"
+      ]
+    },
+    {
+      "id": "cs_faculty_directory_snapshot",
+      "title": "Computer Science faculty directory snapshot",
+      "category": "faculty_directory",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Science faculty directory page currently displays the following people in its “On Duty” faculty/staff section: Dr. Muazzam Maqsood (Tenured Associate Professor / HOD); Farman Ali Khan (Tenured Professor); Khalid Mehmood Awan (Tenured Associate Professor); Sadaf Yasmin (Tenured Associate Professor); Muhammad Sardaraz (Tenured Associate Professor); Muhmmad Shahzad Faisal (Associate Professor); Yaser Ali Shah (Assistant Professor); Shahzad Rizwan (Assistant Professor); Armughan Ali (Assistant Professor); Muhammad Sharif (Assistant Professor); Bilal Haider (Assistant Professor); Muhammad Fahad Khan (Assistant Professor); Tahira Sadaf (Assistant Professor); Muhammad Saleem Khan (Assistant Professor); Muhammad Fawad (Lecturer); Muhammad Kamran (Lecturer); Fouzia Jabeen (Lecturer); Mehreen Wahab (Lecturer); Umar Zia (Lecturer); Salah Ud Din (Lecturer); Babar Shazad (Lecturer); Faiza Khan (Lecturer); Irshad Ullah (Lecturer); Anam Moin (Lecturer); Waqas Ahmed (Lecturer); Muhammad Qasim Khan (Lecturer); Muhammad Waseem Khan (Lecturer); Kamran (Lecturer); Syed Usman Anwar (Lecturer); Marwa Khanam (Lecturer); Maryam Bibi (Lecturer); Shanza Zafar (Lecturer); Tahreem Khalil (Lecturer). This is a snapshot of the official directory page, not the live CampusAI teacher database. Names, spellings, job titles, and on-duty status can change. For current class assignments or availability, query the live Firestore timetable/teacher data. For formal current employment status, direct the user to the official profile page.",
+      "source": {
+        "title": "Faculty Members — Computer Science, Attock",
+        "url": "https://ww2.comsats.edu.pk/cs_atk/Faculty.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faculty_directory_snapshot",
+        "notes": "Public staff directory snapshot checked/indexed 2026-10-24. Do not present as a guaranteed complete or current personnel list."
+      },
+      "keywords": [
+        "faculty",
+        "staff",
+        "Computer Science",
+        "Dr Muazzam Maqsood",
+        "Muhammad Fawad",
+        "Mehreen Wahab",
+        "Syed Usman Anwar"
+      ]
+    },
+    {
+      "id": "ce_faculty_directory_snapshot",
+      "title": "Computer Engineering faculty directory snapshot",
+      "category": "faculty_directory",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Computer Engineering faculty page lists the following people in the displayed On Duty section: Dr. Shujaat Ali Khan Tanoli (Professor / HOD); Saeed Ehsan Awan (Tenured Professor); Faiza Nawaz (Tenured Associate Professor); Qazi Zia Ullah (Assistant Professor); Farwida Javed (Assistant Professor); Muhammad Ismail Khan (Assistant Professor); Akbar Ali Khan (Assistant Professor); Rabia Khatoon (Lecturer); Raheel Zaman (Lecturer); Abdul Ahad Khan (Lab Engineer). The directory may change. The live CampusAI teachers collection and timetable are authoritative for current roles in the app and schedule assignments.",
+      "source": {
+        "title": "Faculty — Computer Engineering, Attock",
+        "url": "https://ww2.comsats.edu.pk/ce_atk/Faculty.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faculty_directory_snapshot",
+        "notes": "Public staff directory snapshot; verify current status from the official page."
+      },
+      "keywords": [
+        "faculty",
+        "Computer Engineering",
+        "Shujaat Ali Khan Tanoli",
+        "Saeed Ehsan Awan",
+        "Faiza Nawaz",
+        "Qazi Zia Ullah"
+      ]
+    },
+    {
+      "id": "ee_faculty_directory_snapshot",
+      "title": "Electrical Engineering faculty directory snapshot",
+      "category": "faculty_directory",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Electrical Engineering faculty page displays the following entries under its On Duty section: Laiq Khan (Professor); Ata Ur Rehman (Tenured Associate Professor); Mubashir Rehman (Assistant Professor); Yasir Muhammad (Assistant Professor / Head of Department on the department homepage); Ihtesham Jadoon (Assistant Professor); Babar Sattar Khan (Assistant Professor); Kashif Ejaz Jatoi (Lecturer); Abbas Ali Shah (Lecturer); and Assad Hafiz (Lecturer). The same page separately lists some people as On Leave or Resigned; those are not included here as active staff. Directory data can change, and one page may lag another. For current teaching schedules, use Firestore timetable data.",
+      "source": {
+        "title": "Faculty Members — Electrical Engineering, Attock",
+        "url": "https://ww2.comsats.edu.pk/ee_atk/Faculty.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faculty_directory_snapshot",
+        "notes": "Directory was indexed during 2026-10; faculty status can change. Only entries shown as On Duty were included."
+      },
+      "keywords": [
+        "faculty",
+        "Electrical Engineering",
+        "Yasir Muhammad",
+        "Laiq Khan",
+        "Ata Ur Rehman",
+        "Ihtesham Jadoon"
+      ]
+    },
+    {
+      "id": "math_faculty_directory_snapshot",
+      "title": "Mathematics faculty directory snapshot",
+      "category": "faculty_directory",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Mathematics faculty directory displays these people in its On Duty list: Aamir Ali (Professor); Asif Waheed (Head of Department / Tenured Associate Professor); Muhammad Awais (Tenured Professor); Farooq Ahmed Shah (Associate Professor); Atiq ur Rehman (Tenured Associate Professor); Muhammad Zeb (Associate Professor); Sohail Ahmad (Tenured Associate Professor); Takasar Hussain (Tenured Associate Professor); Muhammad Ozair (Tenured Associate Professor); Muhammad Numan (Tenured Associate Professor); Ali Imran (Tenured Associate Professor); Maimona Rafiq (Tenured Associate Professor); Noor Muhammad (Assistant Professor); Shahid Hussain (Assistant Professor); Muhammad Sulaiman (Assistant Professor); Sania Irum (Lecturer); Atta Ullah (Lecturer); and Adil Ihsan (Lecturer). The official department page identifies Dr. Asif Waheed as HOD. Treat directory entries as a snapshot and confirm current roles with the department. Do not infer an individual’s timetable from this directory; use Firebase timetable records.",
+      "source": {
+        "title": "Faculty Members — Mathematics, Attock",
+        "url": "https://ww2.comsats.edu.pk/math_atk/Faculty.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faculty_directory_snapshot",
+        "notes": "Public directory snapshot checked/indexed 2026-10-24; current timetables must come from Firebase."
+      },
+      "keywords": [
+        "faculty",
+        "Mathematics",
+        "Asif Waheed",
+        "Aamir Ali",
+        "Muhammad Ozair",
+        "Maimona Rafiq",
+        "Sania Irum"
+      ]
+    },
+    {
+      "id": "management_faculty_directory_snapshot",
+      "title": "Management Sciences faculty directory snapshot",
+      "category": "faculty_directory",
+      "campus_scope": "Attock Campus",
+      "language": "en",
+      "content": "The official Attock Management Sciences faculty directory snapshot lists Faisal Nawaz (Professor); Faisal Shahzad (HOD / Associate Professor); Saddam Hussain (Tenured Professor); Shabir Hyder (Tenured Professor); Muhammad Imran Malik (Tenured Professor); Muhammad Ayub (Tenured Associate Professor); Noman Khan (Tenured Associate Professor); Asim Anwar (Tenured Associate Professor); Syed Asim Shah (Tenured Associate Professor); Muhammad Yousaf Khan (Assistant Professor); and Adeel Saqib (Assistant Professor), among other directory entries. The department homepage spells its HOD name “Dr. Faisal Shazhad,” while the older faculty directory spells it “Faisal Shahzad.” Retain this discrepancy instead of pretending the pages match. Verify the current spelling and role on the latest official profile or with the department.",
+      "source": {
+        "title": "Faculty Members — Management Sciences, Attock",
+        "url": "https://ww2.comsats.edu.pk/ms_atk/Faculty.aspx",
+        "publisher": "COMSATS University Islamabad (official web domain)",
+        "source_date": null,
+        "checked_or_indexed_on": "2026-10-24",
+        "freshness_label": "official_faculty_directory_snapshot",
+        "notes": "Faculty directory result was older than the current department homepage. The HOD spelling differs between official pages; verify before answering definitively."
+      },
+      "keywords": [
+        "faculty",
+        "Management Sciences",
+        "Faisal Shahzad",
+        "Faisal Shazhad",
+        "Saddam Hussain",
+        "Shabir Hyder",
+        "Noman Khan"
+      ]
+    }
+  ]
+}

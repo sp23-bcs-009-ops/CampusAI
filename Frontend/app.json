@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "CampusAI",
+    "slug": "campusai",
+    "scheme": "campusai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#3D2B8E"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "edu.cuiatk.campusai"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#3D2B8E"
+      },
+      "package": "edu.cuiatk.campusai"
+    },
+    "plugins": [
+      "expo-document-picker",
+      "expo-image-picker",
+      "expo-web-browser",
+      "@react-native-community/datetimepicker"
+    ]
+  }
+}

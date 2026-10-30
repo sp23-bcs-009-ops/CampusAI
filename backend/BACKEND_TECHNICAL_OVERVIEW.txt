@@ -1,0 +1,318 @@
+CAMPUS AI BACKEND - TECHNICAL OVERVIEW
+=======================================
+
+Purpose
+-------
+The backend is a Python FastAPI service for Campus AI. It provides:
+- AI chat through the /ask endpoint.
+- Student timetable queries.
+- Teacher availability and teaching schedules.
+- Room availability and room schedules.
+- COMSATS University information using live official website pages.
+
+
+1. BACKEND FILES
+================
+
+Application source files
+------------------------
+API.py
+  Main FastAPI application. Defines HTTP routes, request models, CORS,
+  API-key authentication, rate limiting, startup initialization, health checks,
+  timetable endpoints, and COMSATS refresh/status endpoints.
+
+config.py
+  Central environment configuration. Loads .env values and configures the LLM,
+  Groq, optional OpenAI, ChromaDB, security, CORS, rate limits, knowledge freshness,
+  and session-memory window.
+
+llm.py
+  LLM provider abstraction. Creates a LangChain chat model for Groq
+  (https://api.groq.com/openai/v1) or optional OpenAI, plus provider status.
+  The API key is never included in that status.
+
+pipeline.py
+  Main question-processing pipeline. Routes each question to an intent and
+  calls the correct handler. Contains LangChain prompts, session memory,
+  follow-up entity memory, timetable handling, teacher handling, room handling,
+  COMSATS website handling, greetings, and off-topic refusal logic.
+
+university_data.py
+  Read-only Firestore client for project universityassistentai. Loads the
+  published text_pdf_timetables manifest, events, teachers, announcements,
+  lost-and-found, and notifications. A failed read is never replaced with
+  local JSON.
+
+timetable_service.py
+  Deterministic timetable engine. Loads the current Firestore timetable and provides class,
+  day, teacher, room, time-slot, availability, next-class, and subject lookup
+  functions. It also builds teacher and room indexes in memory.
+
+normalizer.py
+  Converts many class-name formats into canonical timetable keys. For example,
+  CS-I, BCS-1, BSCS1, BS(CS) I, and CS semester 1 can resolve to BS(CS)-I.
+
+rag_store.py
+  Legacy ChromaDB helper. Live chatbot answers do not read it.
+
+comsats_scraper.py
+  Fetches official COMSATS website pages when answering website questions.
+  Direct answers for common campus, admissions, and program questions do not
+  use local JSON. Website knowledge is not stored in Firebase.
+
+pdf_to_json.py
+  Uses pdfplumber to read timetable.pdf, detect semesters, extract timetable
+  tables, parse subjects, teachers, rooms, lab groups, and flags, then generate
+  timetable_flat.json and timetable_data.json.
+
+text_pdf_layout.py and rule_based_text_pdf.py
+  The formal /upload-timetable pipeline. PyMuPDF extracts text and coordinates;
+  Python rules classify fixed cell layouts, validate the existing timetable
+  schema, and pass it to timetable_upload.py. No OCR model is called.
+
+teacher_matching.py
+  Canonicalizes clear timetable spelling variants to the stored Teacher List
+  spelling, retaining the source text when a match is ambiguous.
+
+update_comsats_data.py
+  Command-line refresh script. Re-scrapes COMSATS data and force-rebuilds the
+  ChromaDB vector collection.
+
+
+Data and generated files
+------------------------
+timetable.pdf
+  Source timetable document used by pdf_to_json.py.
+
+timetable_data.json
+  Removed from chatbot runtime. Live answers use Firestore text_pdf_timetables.
+
+timetable_flat.json
+  Flat version of timetable data generated from the PDF. Each record contains
+  semester, day, time_slot, subject, teacher, room, is_repeater, is_lab, and
+  lab_group.
+
+comsats_knowledge.json
+  Local COMSATS scraping cache containing source, update time, page list,
+  chunks, chunk count, page count, and scraping errors. The current checked-in
+  cache contains 0 pages and 0 chunks, with scrape errors recorded.
+
+
+Configuration and deployment files
+----------------------------------
+.env
+  Local environment values. It may contain local models, API keys, URLs, and
+  security settings. It must not be committed or exposed publicly.
+
+.env.example
+  Safe configuration template showing supported environment variables.
+
+requirements.txt
+  Python dependencies: fastapi, uvicorn, slowapi,
+  rapidfuzz, langchain-core, chromadb, pdfplumber, pymupdf, and firebase-admin.
+
+Dockerfile
+  Builds a Python 3.11 slim image, installs requirements, copies backend code
+  and JSON data, persists ChromaDB under /data, exposes port 8000, defines a
+  health check, and starts Uvicorn with API:app.
+
+.dockerignore
+  Docker build exclusion rules for files that should not be copied into the
+  image.
+
+README.md
+  Backend architecture, local setup, Docker setup, endpoints, LLM switching,
+  security, and session-memory documentation.
+
+START.txt
+  Short startup instructions for local Uvicorn and Docker execution.
+
+runMudassir.bat
+  Windows batch launcher that starts the backend with the local virtual
+  environment and Uvicorn reload mode.
+  
+test_interface.html
+  Browser-based backend testing interface. It checks connectivity, sends chat
+  requests, and tests timetable and COMSATS endpoints at localhost:8000.
+
+
+tests/test_routing.py
+  Pytest regression tests for intent routing, class normalization, teacher and
+  room detection, follow-up memory, and response data shapes. Tests focus on
+  deterministic logic and do not require LLM calls.
+
+.venv/
+  Local Python virtual environment directory. It contains installed packages
+  and is not application source code.
+
+
+2. TECHNOLOGIES USED
+====================
+
+Programming language
+--------------------
+- Python 3.11 runtime in Docker.
+- HTML, CSS, and JavaScript for the backend test interface.
+
+Web API and server
+------------------
+- FastAPI: REST API framework.
+- Uvicorn: ASGI server.
+- Pydantic: request validation and data models.
+- Starlette middleware through FastAPI: CORS support.
+
+AI and language processing
+--------------------------
+- LangChain Core: prompts, message history, chains, fallbacks, and output
+  parsing.
+- Groq: cloud LLM for generated replies, normally openai/gpt-oss-120b,
+  called through the OpenAI-compatible endpoint https://api.groq.com/openai/v1.
+- OpenAI: optional alternate cloud LLM provider, normally gpt-4o-mini.
+- RapidFuzz: fuzzy matching for class, teacher, room, and subject detection.
+
+Retrieval augmented generation
+------------------------------
+- ChromaDB: persistent vector database.
+- all-MiniLM-L6-v2 ONNX embedding function when available.
+- Custom deterministic hashing embedder as an offline fallback.
+- JSON file cache for scraped official COMSATS website content.
+
+Data extraction and networking
+------------------------------
+- pdfplumber: timetable PDF table extraction.
+- Python standard-library urllib: COMSATS page downloading.
+- html.parser.HTMLParser: HTML text and link extraction.
+- JSON: timetable and knowledge-base storage.
+
+Security and operations
+----------------------
+- slowapi: IP-based request rate limiting.
+- Optional X-API-Key authentication using CAMPUS_AI_API_KEY.
+- Configurable CORS origins.
+- Docker and Docker Compose integration from the parent Campus_AI project.
+- Uvicorn health endpoint monitored by the Docker HEALTHCHECK.
+
+Testing
+-------
+- pytest for backend routing and behavior regression tests.
+
+
+3. HOW THE BACKEND FLOW WORKS
+==============================
+
+A. Application startup
+----------------------
+1. Uvicorn starts API:app on port 8000.
+2. config.py loads environment variables and optional .env values.
+3. timetable_service.py loads indexes from Firestore on first timetable question.
+4. The selected LLM provider is displayed in the startup logs.
+
+B. Chat request flow: POST /ask
+-------------------------------
+1. The client sends {"question": "...", "session_id": "optional"}.
+2. API.py checks the optional X-API-Key and applies the rate limit.
+3. API.py passes the question and session ID to pipeline.answer_question().
+4. pipeline.py loads or creates per-session memory.
+5. The router detects class, teacher, room, day, time, and likely intent.
+6. The question is sent to one handler:
+   - timetable: deterministic class schedule lookup.
+   - teacher: deterministic teacher availability or teaching schedule.
+   - room: deterministic room availability or room schedule.
+   - rooms_all: all free or occupied rooms.
+   - comsats_info: direct official-page answer or live website fetch plus LLM.
+   - events/announcements/teachers/lostfound/notifications: Firestore records.
+   - general/greeting: controlled LLM response.
+   - off_topic: fixed refusal response.
+7. The result and detected intent are returned as JSON.
+8. The question and answer are stored in the session memory.
+9. Entity memory allows follow-ups such as "what about Tuesday?" to reuse the
+   previous teacher, class, or room.
+
+C. Timetable REST flow
+----------------------
+1. A timetable endpoint receives a class name.
+2. API.py resolves aliases and variations using timetable_service.detect_class()
+   and normalizer.py.
+3. timetable_service.py reads the in-memory timetable structure.
+4. Results are sorted by lecture start time.
+5. API.py returns structured JSON containing class, day, subject, teacher, room,
+   and lecture/time information.
+
+Available timetable endpoints:
+- POST /student-timetable
+- GET /today-classes/{class_name}
+- GET /class-schedule/{class_name}/{day}
+
+D. COMSATS website flow
+-----------------------
+1. A COMSATS question is first checked for a direct official-page answer.
+2. If none matches, the official website is fetched live.
+3. Groq answers using only that page text.
+4. Website knowledge is not stored in Firebase. Local JSON/Chroma are not used.
+
+COMSATS endpoints:
+- GET /comsats/status
+- GET /comsats/refresh
+
+E. Timetable data-generation flow
+---------------------------------
+1. timetable.pdf is supplied as the source document.
+2. pdf_to_json.py detects the semester on each page.
+3. pdfplumber extracts the timetable tables.
+4. The parser identifies days, time slots, subjects, teachers, rooms, labs, and
+   repeater/group metadata.
+5. timetable_flat.json is written as a flat record list.
+6. timetable_data.json is no longer used at chatbot runtime. Live answers use Firestore.
+
+
+4. IMPORTANT CONFIGURATION
+==========================
+
+LLM_PROVIDER
+  groq or openai. Default: groq.
+GROQ_API_KEY
+  Required for generated Groq replies. Read from the environment only.
+GROQ_MODEL
+  Default: openai/gpt-oss-120b.
+OPENAI_API_KEY
+  Enables OpenAI access when OpenAI is selected.
+OPENAI_MODEL
+  Default: gpt-4o-mini.
+CHROMA_DIR
+  Persistent ChromaDB directory. Docker uses /data/chroma_db.
+RAG_TOP_K
+  Number of retrieved COMSATS chunks. Default: 4.
+CAMPUS_AI_API_KEY
+  Optional key required in the X-API-Key request header.
+RATE_LIMIT
+  Default: 20 requests per minute per client IP for /ask.
+CORS_ORIGINS
+  Allowed origins. Default: * for development.
+KNOWLEDGE_MAX_AGE_DAYS
+  Automatic COMSATS refresh threshold. Default: 7; 0 disables it.
+MEMORY_WINDOW
+  Number of conversation turns retained per session. Default: 8.
+
+
+5. HIGH-LEVEL ARCHITECTURE
+===========================
+
+Client / frontend
+    |
+    v
+FastAPI API.py
+    |-- authentication, CORS, rate limiting, health checks
+    |
+    v
+pipeline.py
+    |-- intent detection and session memory
+    |-- timetable_service.py for deterministic answers
+    |-- university_data.py for Firestore university records
+    |-- comsats_scraper.py for live official website pages
+    |-- llm.py for Groq or optional OpenAI answers
+    |
+    +--> Firestore project universityassistentai
+    +--> comsats.edu.pk for website questions
+
+The design intentionally keeps timetable answers deterministic and uses the LLM
+mainly for natural-language interaction and COMSATS context-based answers.

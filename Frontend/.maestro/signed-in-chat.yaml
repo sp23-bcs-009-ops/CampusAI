@@ -1,0 +1,23 @@
+appId: edu.cuiatk.campusai
+---
+# Do not run this flow against production Firebase.
+# The in-app "student / teacher / staff" buttons call anonymous Firebase auth.
+# Supply an existing local test account through the environment, or skip it.
+- launchApp:
+    clearState: true
+- tapOn: "Sign In"
+- tapOn: "University Email"
+- inputText: ${MAESTRO_EMAIL}
+- tapOn: "Password"
+- inputText: ${MAESTRO_PASSWORD}
+- hideKeyboard
+- tapOn: "Sign In"
+- assertVisible: "AI Chat"
+- tapOn: "AI Chat"
+- assertVisible: "Hey! I'm Campus AI"
+- tapOn: "My schedule today"
+- assertVisible: "My schedule today"
+- tapOn: "Home page"
+- assertVisible: "Home page"
+- tapOn: "AI Chat"
+- assertVisible: "My schedule today"

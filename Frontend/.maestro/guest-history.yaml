@@ -1,0 +1,16 @@
+appId: edu.cuiatk.campusai
+---
+# Chat history is kept in memory only. A cold start shows the welcome card again.
+- launchApp:
+    clearState: true
+- tapOn: "Continue as Guest"
+- tapOn: "What programs does COMSATS offer?"
+- assertVisible: "🧑 You"
+- stopApp
+- launchApp:
+    clearState: false
+- tapOn:
+    text: "Continue as Guest"
+    optional: true
+- assertVisible: "Ask about the university"
+- assertNotVisible: "🧑 You"

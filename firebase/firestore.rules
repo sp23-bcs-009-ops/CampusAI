@@ -1,0 +1,85 @@
+rules_version = '2';
+
+// Campus AI — Firestore security rules
+//
+// Deploy: Firebase Console → Firestore Database → Rules → paste this file
+//   (or `firebase deploy --only firestore:rules` with the Firebase CLI)
+//
+// Model:
+//   • Timetable/teacher/meta data: public read, writes only by signed-in users
+//     (the migration script signs in with FIREBASE_EMAIL/FIREBASE_PASSWORD).
+//   • Events / lost & found / notifications: read for signed-in users,
+//     writes only by signed-in users.
+//   • User profiles: each user can only touch their own document.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ── Timetable data (migrated from backend JSON) ──────────
+    match /timetable_classes/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /teachers/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /meta/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /timetables/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /text_pdf_timetables/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // ── App content ──────────────────────────────────────────
+    match /events/{doc} {
+      allow read: if true;              // dashboard reads without login
+      allow write: if signedIn();
+    }
+    match /lostfound/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+    match /notifications/{dept}/semesters/{sem}/posts/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Emergency announcements are separate from class notifications.
+    // Staff-only creation is enforced by the app until custom claims are added.
+    match /emergency_announcements/{doc} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Issue reports are created from room details. The app filters pending
+    // reports by reporter/staff role and exposes acknowledged reports publicly.
+    match /issue_reports/{doc} {
+      allow read, write: if signedIn();
+    }
+
+    // ── User profiles: owner-only ────────────────────────────
+    match /users/{userEmail} {
+      allow read, write: if signedIn()
+        && request.auth.token.email == userEmail;
+    }
+
+    // Everything else: deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

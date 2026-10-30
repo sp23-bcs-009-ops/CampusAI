@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+slowapi
+rapidfuzz
+langchain-core
+langchain-openai
+chromadb
+pdfplumber
+pymupdf
+python-multipart
+firebase-admin

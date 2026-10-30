@@ -1,0 +1,16 @@
+cd backend
+
+# first time:
+pip install -r requirements.txt
+
+# run:
+python -m uvicorn API:app --reload
+
+# or with Docker (from repo root):
+docker compose up --build
+
+# generated replies use Groq (GROQ_API_KEY in backend/.env)
+# optional OpenAI override:
+#   LLM_PROVIDER=openai
+#   OPENAI_API_KEY=sk-...
+# see backend/README.md for details

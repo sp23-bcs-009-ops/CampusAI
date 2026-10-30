@@ -1,0 +1,18 @@
+appId: edu.cuiatk.campusai
+---
+# Guest chat only. Continue as Guest does not call Firebase.
+# This flow cannot run until an emulator or device has this package installed.
+- launchApp:
+    clearState: true
+- assertVisible: "Continue as Guest"
+- assertVisible: "Sign In"
+- tapOn: "Continue as Guest"
+- assertVisible: "Website AI"
+- assertVisible: "About Us"
+- assertVisible: "Ask about the university"
+- tapOn: "About Us"
+- assertVisible: "Official Website"
+- tapOn: "Website AI"
+- assertVisible: "What programs does COMSATS offer?"
+- tapOn: "How do I apply for admission?"
+- assertVisible: "How do I apply for admission?"

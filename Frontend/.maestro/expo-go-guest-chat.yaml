@@ -1,0 +1,24 @@
+appId: host.exp.exponent
+---
+# Guest chat through Expo Go on a physical phone.
+# Metro must already be running. USB debugging must be on, and the phone
+# must reach this computer with:
+#   adb reverse tcp:8081 tcp:8081
+#   adb reverse tcp:8000 tcp:8000
+# This does not launch an emulator. The other flows in this folder target
+# the installed package edu.cuiatk.campusai and cannot run inside Expo Go.
+- launchApp
+- openLink: exp://127.0.0.1:8081
+- extendedWaitUntil:
+    visible: "Continue as Guest"
+    timeout: 180000
+- tapOn: "Continue as Guest"
+- assertVisible: "Website AI"
+- assertVisible: "About Us"
+- assertVisible: "Ask about the university"
+- tapOn: "About Us"
+- assertVisible: "Official Website"
+- tapOn: "Website AI"
+- assertVisible: "What programs does COMSATS offer?"
+- tapOn: "How do I apply for admission?"
+- assertVisible: "How do I apply for admission?"

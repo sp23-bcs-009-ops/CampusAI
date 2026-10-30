@@ -1,0 +1,33 @@
+appId: edu.cuiatk.campusai
+---
+# Composer behavior that exists today: empty send is disabled, guest input
+# is capped at 300 characters, and the latest message is scrolled into view.
+- launchApp:
+    clearState: true
+- tapOn: "Continue as Guest"
+- tapOn: "Ask about the university…"
+- inputText: "Hello!!!"
+- assertVisible: "Hello!!!"
+- hideKeyboard
+- tapOn: "➤"
+- assertVisible: "Hello!!!"
+- tapOn: "Ask about the university…"
+- inputText: "Where are the COMSATS campuses?"
+- hideKeyboard
+- tapOn: "➤"
+- assertVisible: "Where are the COMSATS campuses?"
+- tapOn: "Ask about the university…"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- inputText: "123456789012"
+- inputText: "EXTRA-CUT"
+- hideKeyboard
+- tapOn: "➤"
+- assertVisible: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+- assertNotVisible: "EXTRA-CUT"

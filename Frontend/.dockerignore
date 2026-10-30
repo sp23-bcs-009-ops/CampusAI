@@ -1,0 +1,7 @@
+node_modules
+.git
+.vscode
+*.log
+dist
+build
+.expo

@@ -1,0 +1,75 @@
+# Campus AI — full stack for demo day
+#
+#   docker compose up --build             → backend on :8000 (local Ollama LLM)
+#   LLM_PROVIDER=openai OPENAI_API_KEY=sk-... docker compose up --build
+#                                         → backend using OpenAI (demo mode)
+#
+# Optional profiles:
+#   docker compose --profile ollama up    → also run Ollama in a container
+#   docker compose --profile frontend up  → also run the Expo frontend
+
+services:
+  backend:
+    build: ./backend
+    container_name: campusai-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    environment:
+      # ── LLM: swap provider for demo day via env ──
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      # host.docker.internal reaches Ollama running on the host machine
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      # ── Security ──
+      CAMPUS_AI_API_KEY: ${CAMPUS_AI_API_KEY:-}
+      RATE_LIMIT: ${RATE_LIMIT:-20/minute}
+      # Server-side Firestore writes for rule-based timetable PDF processing
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-universityassistentai}
+      FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: ${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:-}
+    volumes:
+      - chroma-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Optional: containerized Ollama (heavy — needs the model pulled inside)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: campusai-ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+
+  # Optional: Expo web frontend
+  frontend:
+    build: ./Frontend
+    container_name: campusai-frontend
+    profiles: ["frontend"]
+    ports:
+      - "19006:19006"
+      - "8081:8081"
+    environment:
+      EXPO_PUBLIC_AI_SERVER_URL: http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Optional: React admin dashboard (timetable / teachers / events from Firebase)
+  dashboard:
+    build: ./dashboard
+    container_name: campusai-dashboard
+    profiles: ["dashboard"]
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  chroma-data:
+  ollama-data:

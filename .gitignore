@@ -1,0 +1,68 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Python virtual environment
+venv/
+.venv/
+/backend/.venv/
+env/
+ENV/
+
+# =========================
+# Node / React / Expo
+# =========================
+node_modules/
+.npm/
+.expo/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Generated databases / AI data
+# =========================
+chroma_db/
+/backend/ocr_data/
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# OS files
+# =========================
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# =========================
+# Python cache / test files
+# =========================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Build output
+# =========================
+dist/
+build/
+.expo/
+web-build/
+
+# =========================
+# Temporary archives
+# =========================
+*.rar
+*.zip
+# Launcher markers
+backend/.deps_installed

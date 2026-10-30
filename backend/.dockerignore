@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+ocr_data/
+__pycache__/
+*.pyc
+venv/
+.venv/
+chroma_db/
+*.log
+API.py.bak
+test_interface.html
+runMudassir.bat
+START.txt
