@@ -78,6 +78,11 @@ def _source(document: dict) -> dict:
     return source if isinstance(source, dict) else {}
 
 
+def retrieve_campus_documents(question: str, limit: int = 5) -> list[dict]:
+    """Approved website records used by live /ask. This is not ChromaDB."""
+    return search_pack(question, limit=limit)
+
+
 def search_pack(question: str, limit: int = 5) -> list[dict]:
     """Return ranked pack records. Skips dataset-limitation notes."""
     data = load_pack()
@@ -163,8 +168,23 @@ def pack_is_relevant(question: str, min_score: int = 8) -> bool:
     return best >= min_score
 
 
-def format_pack_context(documents: list[dict]) -> str:
+def _passages(content: str, terms: list[str], limit: int = 900) -> str:
+    text = str(content or "").strip()
+    if not text:
+        return ""
+    if not terms or len(text) <= limit:
+        return text
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    hits = [sentence for sentence in sentences if any(term in sentence.lower() for term in terms)]
+    chosen = " ".join(hits) if hits else text
+    if len(chosen) <= limit:
+        return chosen
+    return chosen[:limit].rstrip() + "..."
+
+
+def format_pack_context(documents: list[dict], question: str = "") -> str:
     blocks = []
+    terms = _terms(question)
     for document in documents:
         source = _source(document)
         category = str(document.get("category") or "")
@@ -184,6 +204,6 @@ def format_pack_context(documents: list[dict]) -> str:
         ]
         if flags:
             header.append("Flags: " + "; ".join(flags))
-        header.append(str(document.get("content") or ""))
+        header.append(_passages(str(document.get("content") or ""), terms))
         blocks.append("\n".join(header))
     return "\n\n---\n\n".join(blocks)

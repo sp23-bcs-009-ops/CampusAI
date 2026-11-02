@@ -1,0 +1,21 @@
+# Backend module deep dives
+
+| Module | Doc |
+| --- | --- |
+| API.py | [API.py.md](API.py.md) |
+| pipeline.py | [pipeline.py.md](pipeline.py.md) |
+| identity.py | [identity.py.md](identity.py.md) |
+| university_data.py | [university_data.py.md](university_data.py.md) |
+| timetable_service.py | [timetable_service.py.md](timetable_service.py.md) |
+| knowledge_pack.py | [knowledge_pack.py.md](knowledge_pack.py.md) |
+| normalizer.py | [normalizer.py.md](normalizer.py.md) |
+| llm.py | [llm.py.md](llm.py.md) |
+| config.py | [config.py.md](config.py.md) |
+| comsats_scraper.py | [comsats_scraper.py.md](comsats_scraper.py.md) |
+| rag_store.py | [rag_store.py.md](rag_store.py.md) |
+| timetable_upload.py | [timetable_upload.py.md](timetable_upload.py.md) |
+| rule_based_text_pdf.py | [rule_based_text_pdf.py.md](rule_based_text_pdf.py.md) |
+| text_pdf_layout.py | [text_pdf_layout.py.md](text_pdf_layout.py.md) |
+| pdf_to_json.py | [pdf_to_json.py.md](pdf_to_json.py.md) |
+| teacher_matching.py | [teacher_matching.py.md](teacher_matching.py.md) |
+| update_comsats_data.py | [update_comsats_data.py.md](update_comsats_data.py.md) |

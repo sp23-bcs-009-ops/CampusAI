@@ -25,12 +25,16 @@ node_modules/
 .env
 .env.*
 !.env.example
+backend/.en
+.agents/
+skills-lock.json
 
 # =========================
 # Generated databases / AI data
 # =========================
 chroma_db/
 /backend/ocr_data/
+/backend/data/
 
 # =========================
 # Logs

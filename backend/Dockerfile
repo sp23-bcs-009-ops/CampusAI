@@ -21,7 +21,8 @@ FROM dependencies AS backend
 # Copy application code + data
 COPY config.py llm.py rag_store.py pipeline.py timetable_service.py API.py \
      normalizer.py comsats_scraper.py pdf_to_json.py timetable_upload.py text_pdf_layout.py \
-     rule_based_text_pdf.py teacher_matching.py university_data.py knowledge_pack.py identity.py ./
+     rule_based_text_pdf.py teacher_matching.py university_data.py knowledge_pack.py identity.py \
+     catalog.py user_memory.py ./
 COPY timetable_flat.json comsats_knowledge.json timetable.pdf ./
 COPY knowledge_pack ./knowledge_pack
 

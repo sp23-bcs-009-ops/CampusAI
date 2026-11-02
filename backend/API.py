@@ -173,7 +173,13 @@ def health():
     return {
         "status": "ok",
         "llm": llm_info(),
-        "rag": {"collection": "unused", "documents": 0, "embedder": "none"},
+        "rag": {
+            "chroma": "unused",
+            "document_retrieval": "knowledge_pack",
+            "collection": "unused",
+            "documents": 0,
+            "embedder": "none",
+        },
         "knowledge_pack": _knowledge_pack_health(),
         "auth_enabled": bool(settings.api_key),
         "rate_limit": settings.rate_limit,
