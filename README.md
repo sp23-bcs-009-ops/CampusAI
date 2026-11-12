@@ -26,6 +26,20 @@ Timetable PDF processing uses embedded text, PyMuPDF page layout, and Python
 cell rules. It does not require an OCR model or timetable AI API key. Scanned or
 image-only PDFs are not supported.
 
+During Exam Mode, staff can upload an Excel (`.xlsx`) datesheet from the app.
+The backend validates every worksheet before publishing the exam timetable;
+dates, times, course details, class, strength, and invigilators are then
+available to all users. Regular Mode continues to use the PDF upload flow.
+
+In development, the role-switching test account always has Developer Mode;
+allowlisted developer accounts can toggle it from My Profile. With it active,
+tap the displayed date/time on Home to open the local clock simulator. It
+supports either weekday + time (next matching date) or date + time (weekday
+derived from date). The currently allowlisted accounts are
+`sp23-bcs-009@cuiatk.edu.pk` and `sp23-bcs-012@cuiatk.edu.pk`; change that
+allowlist deliberately when granting access. This is a client-side
+UI/testing feature, not server authorization.
+
 ## 📦 What's inside
 
 ```

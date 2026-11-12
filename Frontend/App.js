@@ -23,6 +23,7 @@ import useEmergencyAnnouncements from './src/hooks/useEmergencyAnnouncements';
 import useScheduleMode from './src/hooks/useScheduleMode';
 import ScheduleModePicker from './src/components/ScheduleModePicker';
 import { buildClashingSubjectAliasMap, normalizeSubjectKey, resolveSubjectAlias } from './src/utils/clashingSubjectAliases';
+import { getDeveloperNow } from './src/utils/developerClock';
 
 const NAV_ICON_COLORS = {
   chat: { light: '#0284C7', dark: '#38BDF8' },
@@ -54,7 +55,8 @@ export default function App() {
 
   const navViewportWidth = Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
   const navItemWidth = navViewportWidth / Math.min(3, Math.max(1, navItems.length));
-  const [now, setNow] = useState(new Date());
+  const [wallClockNow, setWallClockNow] = useState(new Date());
+  const now = getDeveloperNow(wallClockNow, user);
   const emergency = useEmergencyAnnouncements();
   const schedule = useScheduleMode();
 
@@ -130,7 +132,7 @@ export default function App() {
 
   // Clock tick every minute
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
+    const t = setInterval(() => setWallClockNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
 
@@ -227,6 +229,7 @@ export default function App() {
             timetableManifest={timetableManifest}
             arrangedClasses={arrangedClasses} cancelledSlots={cancelledSlots}
             ttMeta={ttMetaWithRows} onTTUploaded={() => reloadTT()}
+            onUpdateUser={handleUpdate}
             schedule={schedule} examTimetable={exam}
             officeTarget={officeTarget}
             onOfficeTargetHandled={() => setOfficeTarget(null)}

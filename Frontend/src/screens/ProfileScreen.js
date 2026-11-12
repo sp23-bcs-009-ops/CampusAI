@@ -9,6 +9,11 @@ import { C } from '../constants/colors';
 import { DEPT_MAP, DEPT_MAX_SEM, SEM_LABELS, STUDENT_DEPARTMENTS } from '../constants/config';
 import { calcAge } from '../utils/helpers';
 import { InfoRow } from '../components/ui';
+import {
+  canUseDeveloperMode,
+  isAlwaysOnTestAccount,
+  isDeveloperModeEnabled,
+} from '../utils/developerClock';
 
 export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, dark, subjectsList = [], availableSubjects = [] }) {
   const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
@@ -32,6 +37,9 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
   const [editSem,      setEditSem]      = useState(false);
   const [sem,          setSem]          = useState(user.semester || 1);
   const [dept,         setDept]         = useState(user.dept || 'cs');
+  const canAccessDeveloperMode = canUseDeveloperMode(user);
+  const alwaysOnTestAccount = isAlwaysOnTestAccount(user);
+  const developerModeEnabled = isDeveloperModeEnabled(user);
 
   const bg     = dark ? '#0A0A1E' : '#F5F4FF';
   const cardBg = dark ? '#1A1A3E' : '#FFFFFF';
@@ -73,6 +81,9 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
     onUpdate({ ...user, semester: sem });
     setEditSem(false);
     setSaved(true); setTimeout(() => setSaved(false), 2500);
+  }
+  function setDeveloperModeEnabled(enabled) {
+    onUpdate({ ...user, developerModeEnabled: enabled });
   }
 
   useEffect(() => {
@@ -145,6 +156,45 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+        )}
+
+        {canAccessDeveloperMode && (
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr, paddingBottom: 14 }]}>
+            <View style={styles.cardHeader}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.cardTitle, { color: tp }]}>Developer Mode</Text>
+                <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
+                  {alwaysOnTestAccount
+                    ? 'Always active for this development test account.'
+                    : 'Enable local campus-time simulation for timetable and room-map testing.'}
+                </Text>
+              </View>
+              {alwaysOnTestAccount ? (
+                <View style={{ minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#DCFCE7' }}>
+                  <Text style={{ color: '#166534', fontSize: 11, fontWeight: '800' }}>ALWAYS ON</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: developerModeEnabled }}
+                  onPress={() => setDeveloperModeEnabled(!developerModeEnabled)}
+                  style={{
+                    minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                    alignItems: 'center',
+                    backgroundColor: developerModeEnabled ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
+                  }}>
+                  <Text style={{ color: developerModeEnabled ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
+                    {developerModeEnabled ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {developerModeEnabled && (
+              <Text style={{ color: muted, fontSize: 10, marginTop: 2 }}>
+                On the home screen, tap the displayed date or time to set the simulated clock.
+              </Text>
+            )}
           </View>
         )}
 

@@ -23,7 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 import timetable_service as tt
-from university_data import UniversityDataUnavailable
+from university_data import UniversityDataUnavailable, schedule_mode as get_schedule_mode
 from knowledge_pack import KnowledgePackUnavailable, pack_status
 from config import settings
 from llm import llm_info
@@ -35,6 +35,10 @@ from timetable_upload import (
     verify_timetable_uploader,
 )
 from rule_based_text_pdf import process_rule_based_pdf
+from exam_timetable_upload import (
+    ExamTimetableValidationError,
+    publish_exam_timetable_xlsx,
+)
 from text_pdf_layout import (
     TextPdfRequiredError,
     TextPdfValidationError,
@@ -104,6 +108,15 @@ def require_timetable_uploader(authorization: str | None = Header(default=None))
     except Exception as exc:
         logger.exception("Firebase upload authorization failed")
         raise HTTPException(status_code=503, detail="Firebase authorization is temporarily unavailable.") from exc
+
+
+def _exam_upload_role_allowed(uploader: dict) -> bool:
+    if uploader.get("role") == "staff":
+        return True
+    return (
+        uploader.get("role") == "dev"
+        and os.getenv("TIMETABLE_UPLOAD_DEV_MODE", "false").strip().lower() == "true"
+    )
 
 
 def _warm_university_cache() -> None:
@@ -269,6 +282,63 @@ async def upload_timetable(
                 os.unlink(temp_path)
             except OSError:
                 logger.warning("Could not remove temporary timetable upload.")
+
+
+@app.post("/upload-exam-timetable")
+@limiter.limit("2/minute")
+async def upload_exam_timetable(
+    request: Request,
+    xlsx: UploadFile = File(...),
+    uploader: dict = Depends(require_timetable_uploader),
+):
+    """Validate and publish an Excel exam datesheet as the active Exam dataset."""
+    if not _exam_upload_role_allowed(uploader):
+        raise HTTPException(status_code=403, detail="Only Staff accounts can upload Exam Timetables.")
+
+    try:
+        current_mode = await run_in_threadpool(get_schedule_mode)
+    except UniversityDataUnavailable as exc:
+        logger.warning("Exam upload could not verify the active schedule mode: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"Could not verify the active campus schedule mode: {exc}",
+        ) from exc
+    if current_mode != "exam":
+        raise HTTPException(status_code=409, detail="Switch the campus to Exam Mode before uploading an Exam Timetable.")
+
+    filename = Path(xlsx.filename or "exam-timetable.xlsx").name
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Upload an .xlsx Excel workbook.")
+    max_bytes = int(os.getenv("TIMETABLE_UPLOAD_MAX_MB", "50")) * 1024 * 1024
+    payload = await xlsx.read(max_bytes + 1)
+    await xlsx.close()
+    if len(payload) > max_bytes:
+        raise HTTPException(status_code=413, detail="Excel workbook exceeds the upload size limit.")
+    if not payload.startswith(b"PK"):
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid .xlsx workbook.")
+
+    try:
+        documents, row_count, _source_hash = await run_in_threadpool(
+            publish_exam_timetable_xlsx,
+            payload,
+            uploaded_by=uploader["email"],
+            version=filename,
+            source_file_name=filename,
+        )
+        return {
+            "success": True,
+            "message": "Exam datesheet validated and published.",
+            "collection": "text_pdf_timetables",
+            "documentIds": sorted(documents),
+            "classCount": len(documents),
+            "rowCount": row_count,
+            "uploadedBy": uploader["email"],
+        }
+    except ExamTimetableValidationError as exc:
+        return JSONResponse(
+            status_code=422,
+            content={"success": False, "error": "EXAM_TIMETABLE_VALIDATION_FAILED", "message": str(exc)},
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

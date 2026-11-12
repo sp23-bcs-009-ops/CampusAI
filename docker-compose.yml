@@ -27,9 +27,8 @@ services:
       # ── Security ──
       CAMPUS_AI_API_KEY: ${CAMPUS_AI_API_KEY:-}
       RATE_LIMIT: ${RATE_LIMIT:-20/minute}
-      # Server-side Firestore writes for rule-based timetable PDF processing
+      # Firestore project used for university reads and timetable uploads
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-universityassistentai}
-      FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: ${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:-}
     volumes:
       - chroma-data:/data
     extra_hosts:

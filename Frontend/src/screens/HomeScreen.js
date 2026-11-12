@@ -16,13 +16,20 @@ import { COMSATSLogo } from '../components/ui';
 import { SCHEDULE_MODES } from '../hooks/useScheduleMode';
 import TimetableAdminPanel from '../components/TimetableAdminPanel';
 import SearchClass from '../components/SearchClass';
+import {
+  DEVELOPER_WEEKDAYS,
+  formatLocalDate,
+  isDeveloperModeEnabled,
+  parseClockTime,
+  parseLocalDate,
+} from '../utils/developerClock';
 
 
 export default function HomeScreen({
   user, dark, now, timetable, lectureSlots, lectureSlotsByDepartmentSemester,
   timetableDocuments = [], timetableManifest,
   arrangedClasses, cancelledSlots,
-  ttMeta, onTTUploaded, isGuest,
+  ttMeta, onTTUploaded, onUpdateUser, isGuest,
   schedule, examTimetable, officeTarget, onOfficeTargetHandled,
 }) {
   const [selectedDepartment, setSelectedDepartment] = useState('cs');
@@ -35,6 +42,24 @@ export default function HomeScreen({
   const [officeSearch, setOfficeSearch] = useState('');
   const [officeSaving, setOfficeSaving] = useState(false);
   const [officeError, setOfficeError] = useState('');
+  const [showDeveloperClock, setShowDeveloperClock] = useState(false);
+  const [developerClock, setDeveloperClock] = useState(() => {
+    const base = now || new Date();
+    return {
+      mode: user?.developerClock?.mode || 'weekday',
+      weekday: String(user?.developerClock?.weekday ?? base.getDay()),
+      date: user?.developerClock?.date || formatLocalDate(base),
+      time: user?.developerClock?.time || `${String(base.getHours()).padStart(2, '0')}:${String(base.getMinutes()).padStart(2, '0')}`,
+    };
+  });
+  const developerClockEnabled = isDeveloperModeEnabled(user);
+  const developerClockInputValid = !!parseClockTime(developerClock.time)
+    && (developerClock.mode !== 'date' || !!parseLocalDate(developerClock.date));
+
+  function updateDeveloperClock(nextClock) {
+    setDeveloperClock(nextClock);
+    onUpdateUser?.({ ...user, developerClock: nextClock });
+  }
 
   const roomDepartment = (roomId) => {
     const room = String(roomId || '').trim();
@@ -242,8 +267,22 @@ export default function HomeScreen({
             </View>
           </View>
 
-          <Text style={styles.homeHeaderDate}>{dateLabel}</Text>
-          <Text style={styles.homeHeaderTime}>{timeLabel}</Text>
+          {developerClockEnabled ? (
+            <TouchableOpacity
+              onPress={() => setShowDeveloperClock(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set simulated date and time. Current display: ${dateLabel} ${timeLabel}`}
+              style={{ alignSelf: 'flex-start' }}>
+              <Text style={styles.homeHeaderDate}>{dateLabel}</Text>
+              <Text style={styles.homeHeaderTime}>{timeLabel}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.68)', fontSize: 9, marginTop: 1 }}>Tap to set test date and time</Text>
+            </TouchableOpacity>
+          ) : (
+            <>
+              <Text style={styles.homeHeaderDate}>{dateLabel}</Text>
+              <Text style={styles.homeHeaderTime}>{timeLabel}</Text>
+            </>
+          )}
 
           {!isGuest && (
             <View style={styles.homeHeaderStatusPill}>
@@ -339,7 +378,7 @@ export default function HomeScreen({
         )}
 
         {/* Admin: TT Upload */}
-        {can.uploadTimetable(user) && (
+        {(isExam ? user?.type === 'staff' : can.uploadTimetable(user)) && (
           <AdminTTUpload dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
         )}
         {user?.type === 'staff' && (
@@ -352,6 +391,90 @@ export default function HomeScreen({
         )}
 
       </ScrollView>
+
+      <Modal
+        visible={showDeveloperClock && developerClockEnabled}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowDeveloperClock(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowDeveloperClock(false)} />
+        <View style={[styles.developerClockModal, { backgroundColor: cardBg, borderTopColor: bdr }]}>
+          <View style={[styles.handle, { backgroundColor: ts }]} />
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={{ color: tp, fontSize: 18, fontWeight: '800' }}>Set Test Date & Time</Text>
+            <Text style={{ color: ts, fontSize: 11, marginTop: 5, marginBottom: 14 }}>
+              This simulated clock affects the home map, timetable, and class search.
+            </Text>
+            <Text style={{ color: tp, fontSize: 11, fontWeight: '800', marginBottom: 7 }}>Choose one input method</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+              {[
+                ['weekday', 'Weekday + time'],
+                ['date', 'Date + time'],
+              ].map(([mode, label]) => {
+                const selected = developerClock.mode === mode;
+                return (
+                  <TouchableOpacity key={mode} onPress={() => updateDeveloperClock({ ...developerClock, mode })}
+                    style={{ flex: 1, borderWidth: 1.5, borderColor: selected ? C.purple : bdr, borderRadius: 10, padding: 9, alignItems: 'center', backgroundColor: selected ? (dark ? '#27204A' : '#EDE9FF') : bg }}>
+                    <Text style={{ color: selected ? C.purple : ts, fontSize: 10, fontWeight: '700' }}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {developerClock.mode === 'weekday' ? (
+              <>
+                <Text style={{ color: ts, fontSize: 10, marginBottom: 6 }}>The next matching calendar date is calculated automatically.</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                  {DEVELOPER_WEEKDAYS.map(day => {
+                    const selected = Number(developerClock.weekday) === day.value;
+                    return (
+                      <TouchableOpacity key={day.value} onPress={() => updateDeveloperClock({ ...developerClock, weekday: String(day.value) })}
+                        style={{ minWidth: 38, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: selected ? C.purple : bdr, backgroundColor: selected ? (dark ? '#27204A' : '#EDE9FF') : bg, alignItems: 'center' }}>
+                        <Text style={{ color: selected ? C.purple : ts, fontSize: 10, fontWeight: '700' }}>{day.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={{ color: ts, fontSize: 10, marginBottom: 5 }}>Date (YYYY-MM-DD); weekday is calculated automatically.</Text>
+                <TextInput
+                  value={developerClock.date}
+                  onChangeText={date => updateDeveloperClock({ ...developerClock, date })}
+                  placeholder="2026-11-10"
+                  placeholderTextColor={ts}
+                  keyboardType="numbers-and-punctuation"
+                  style={[styles.developerClockInput, { color: tp, borderColor: bdr, backgroundColor: bg, marginBottom: 10 }]}
+                />
+              </>
+            )}
+            <Text style={{ color: ts, fontSize: 10, marginBottom: 5 }}>Local time (24-hour HH:mm)</Text>
+            <TextInput
+              value={developerClock.time}
+              onChangeText={time => updateDeveloperClock({ ...developerClock, time })}
+              placeholder="08:30"
+              placeholderTextColor={ts}
+              keyboardType="numbers-and-punctuation"
+              maxLength={5}
+              style={[styles.developerClockInput, { color: tp, borderColor: bdr, backgroundColor: bg }]}
+            />
+            <Text style={{ color: ts, fontSize: 10, marginTop: 8 }}>
+              Preview: {now.toLocaleString(undefined, {
+                weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })}
+            </Text>
+            {!developerClockInputValid && (
+              <Text style={{ color: '#DC2626', fontSize: 10, marginTop: 5 }}>
+                Enter a valid time (HH:mm){developerClock.mode === 'date' ? ' and calendar date (YYYY-MM-DD)' : ''}.
+              </Text>
+            )}
+            <TouchableOpacity onPress={() => setShowDeveloperClock(false)} style={[styles.closeBtn, { backgroundColor: C.purple }]}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Done</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Office details and Staff assignment */}
       <Modal visible={!!officeRoom} transparent animationType="slide" onRequestClose={() => !officeSaving && setOfficeRoom(null)}>
@@ -589,6 +712,17 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   const targetSemester = isStaff ? (staffSemester ? Number(staffSemester) : null) : Number(semester || 7);
   const targetDepartment = isStaff ? staffDept : String(department || '').toLowerCase();
   const allSlots = Object.values(timetable || {}).flat().filter(slot => slot.day);
+  const examDepartments = [...new Set(allSlots.map(slot => String(slot.dept || slot._dept || '').toLowerCase()).filter(Boolean))].sort();
+  const examSemesters = [...new Set(allSlots
+    .filter(slot => !staffDept || String(slot.dept || slot._dept || '').toLowerCase() === staffDept)
+    .map(slot => Number(slot.sem))
+    .filter(value => Number.isInteger(value) && value > 0))].sort((a, b) => a - b);
+  const departmentChoices = isExamView
+    ? examDepartments.map(code => [code, DEPT_MAP[code] || code.toUpperCase()])
+    : Object.entries(DEPT_MAP);
+  const semesterChoices = isExamView
+    ? examSemesters.map(value => [String(value), `Sem ${value}`])
+    : Array.from({ length: staffDept ? (DEPT_MAX_SEM[staffDept] || 8) : 8 }, (_, i) => [String(i + 1), `Sem ${i + 1}`]);
   const personalTimetableViewer = user?.type === 'student' || user?.type === 'teacher';
   const baseSlots = allSlots.filter(slot =>
     (!targetSemester || Number(slot.sem) === targetSemester)
@@ -649,6 +783,12 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
       day,
       slots: daySlots.sort((a, b) => (a.n - b.n) || String(a.start).localeCompare(String(b.start)) || a.room.localeCompare(b.room)),
     }));
+  const displayExamDate = day => {
+    if (!isExamView || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return day;
+    return new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    });
+  };
 
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
@@ -670,7 +810,7 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
         {isStaff && <View style={{ paddingHorizontal: 12, paddingTop: 10, backgroundColor: bg }}>
           <Text style={{ color: tp, fontSize: 11, fontWeight: '800', marginBottom: 6 }}>Department</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {[['', 'All'], ...Object.entries(DEPT_MAP)].map(([key, label]) => (
+            {[['', 'All'], ...departmentChoices].map(([key, label]) => (
               <TouchableOpacity key={key || 'all'} onPress={() => { setStaffDept(key); setStaffSemester(''); setSelectedTeacher(''); setTeacherSearch(''); }} style={{ borderWidth: 1, borderColor: staffDept === key ? C.purple : bdr, backgroundColor: staffDept === key ? '#EDE9FF' : cardBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 }}>
                 <Text style={{ color: staffDept === key ? C.purple : ts, fontSize: 10, fontWeight: '700' }}>{label}</Text>
               </TouchableOpacity>
@@ -679,7 +819,7 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
           <>
             <Text style={{ color: tp, fontSize: 11, fontWeight: '800', marginTop: 9, marginBottom: 6 }}>Semester</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {[['', 'All'], ...Array.from({ length: staffDept ? (DEPT_MAX_SEM[staffDept] || 8) : 8 }, (_, i) => [String(i + 1), `Sem ${i + 1}`])].map(([key, label]) => (
+              {[['', 'All'], ...semesterChoices].map(([key, label]) => (
                 <TouchableOpacity key={key || 'all'} onPress={() => { setStaffSemester(key); setSelectedTeacher(''); setTeacherSearch(''); }} style={{ borderWidth: 1, borderColor: staffSemester === key ? C.purple : bdr, backgroundColor: staffSemester === key ? '#EDE9FF' : cardBg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 }}>
                   <Text style={{ color: staffSemester === key ? C.purple : ts, fontSize: 10, fontWeight: '700' }}>{label}</Text>
                 </TouchableOpacity>
@@ -724,7 +864,7 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
             </View>
           ) : displayRows.map(({ day, slots: daySlots }, idx) => (
             <View key={day || idx} style={{ padding: 12 }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: tp, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{day}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '800', color: tp, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{displayExamDate(day)}</Text>
               {(daySlots || []).map((s, i) => {
                 const accent = isExamView ? '#DC2626' : (s.mine ? '#EF4444' : C.purple);
                 const badgeColor = isExamView ? '#B91C1C' : (s.mine ? '#B91C1C' : C.purple);
@@ -746,12 +886,16 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 12, fontWeight: '700', color: tp }}>{s.subject}</Text>
                       <Text style={{ fontSize: 9, fontWeight: '700', color: ts, marginTop: 2 }}>
-                        {String(s._dept || s.dept || '').toUpperCase()} · Semester {s.sem || targetSemester || '—'}
+                        {isExamView
+                          ? `${s.classCode || `${String(s._dept || s.dept || '').toUpperCase()}-${s.sem || targetSemester || '—'}`}${s.strength != null ? ` · Strength ${s.strength}` : ''}`
+                          : `${String(s._dept || s.dept || '').toUpperCase()} · Semester ${s.sem || targetSemester || '—'}`}
                       </Text>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
                         <Text style={{ fontSize: 10, color: ts }}>{s.prof}</Text>
                         <Text style={{ fontSize: 10, fontWeight: '700', color: s.mine ? '#B91C1C' : C.purple }}>{s.room}</Text>
                       </View>
+                      {isExamView && s.courseCode ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Course code: {s.courseCode}</Text> : null}
+                      {isExamView && s.invigilators ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Invigilators: {s.invigilators}</Text> : null}
                     </View>
                   </View>
                 );
@@ -777,28 +921,35 @@ function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
   const ib = dark ? '#0A0A1E' : '#F8F7FF';
   const cardBg = dark ? '#12123A' : '#FFFFFF';
   async function handleUpload() {
-    const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+    const isExamUpload = mode === 'exam';
+    const result = await DocumentPicker.getDocumentAsync({
+      type: isExamUpload
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'application/pdf',
+      copyToCacheDirectory: true,
+    });
     if (result.canceled) return;
     const file = result.assets?.[0];
     if (!file) return;
 
-    setUploading(true); setStatus(null); setProgress('📤 Sending PDF...');
+    setUploading(true); setStatus(null); setProgress(isExamUpload ? 'Sending Excel datesheet...' : 'Sending PDF...');
     try {
-      // Convert file URI to blob for proper multipart handling
       const fileBlob = await fetch(file.uri).then(res => res.blob());
 
       const formData = new FormData();
-      formData.append('pdf', fileBlob, file.name);
-      formData.append('version', `v${new Date().toLocaleDateString('en-GB')}`);
-      formData.append('effectiveDate', new Date().toISOString().split('T')[0]);
+      formData.append(isExamUpload ? 'xlsx' : 'pdf', fileBlob, file.name);
+      if (!isExamUpload) {
+        formData.append('version', `v${new Date().toLocaleDateString('en-GB')}`);
+        formData.append('effectiveDate', new Date().toISOString().split('T')[0]);
+      }
       formData.append('scheduleMode', mode === 'exam' ? 'exam' : 'regular');
 
       const { idToken } = getAuthTokens();
       if (!idToken) throw new Error('Please sign in again before uploading.');
 
-      setProgress('🔍 Extracting timetable cells with Python layout rules...');
+      setProgress(isExamUpload ? 'Validating Excel sheets and exam rows...' : 'Extracting timetable cells with Python layout rules...');
 
-      const response = await fetch(`${getAiServerUrl()}/upload-timetable`, {
+      const response = await fetch(`${getAiServerUrl()}${isExamUpload ? '/upload-exam-timetable' : '/upload-timetable'}`, {
         method: 'POST',
         body: formData,
         headers: { Authorization: `Bearer ${idToken}` },
@@ -808,7 +959,9 @@ function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
       if (!response.ok) throw new Error(data.message || data.detail || data.error || 'Server error');
 
       setStatus('success');
-      setMsg(`✓ ${data.message}\nRooms: ${data.roomCount} · Subjects: ${data.subjectCount}`);
+      setMsg(isExamUpload
+        ? `✓ ${data.message}\nClasses: ${data.classCount} · Exams: ${data.rowCount}`
+        : `✓ ${data.message}\nRooms: ${data.roomCount} · Subjects: ${data.subjectCount}`);
       onUploaded?.({});
     } catch (e) {
       setStatus('error');
@@ -826,7 +979,7 @@ function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
     <View style={[styles.uploadCard, { backgroundColor: cardBg, borderColor: bdr }]}>
       <View style={[styles.uploadHeader, { backgroundColor: C.purpleDark }]}>
         <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>📄 {mode === 'exam' ? 'Exam' : 'Regular'} Timetable Management</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>Staff / Admin only</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>{mode === 'exam' ? 'Staff only · Excel datesheet' : 'Staff / Teacher · Text PDF'}</Text>
       </View>
       <View style={{ padding: 12 }}>
         {(mode === 'exam' ? examTimetable?.meta : ttMeta) && (
@@ -851,8 +1004,8 @@ function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
             </>
             : <>
               <Text style={{ fontSize: 22, marginBottom: 4 }}>⬆️</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: tp }}>Upload Timetable PDF</Text>
-              <Text style={{ fontSize: 10, color: ts }}>Python layout rules · text_pdf_timetables</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: tp }}>{mode === 'exam' ? 'Upload Exam Datesheet (Excel)' : 'Upload Timetable PDF'}</Text>
+              <Text style={{ fontSize: 10, color: ts }}>{mode === 'exam' ? 'XLSX sheets · text_pdf_timetables' : 'Python layout rules · text_pdf_timetables'}</Text>
             </>
           }
         </TouchableOpacity>
@@ -881,6 +1034,8 @@ function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   officeModal: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '82%', borderTopWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
+  developerClockModal: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '82%', borderTopWidth: 1, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 30 },
+  developerClockInput: { borderWidth: 1.5, borderRadius: 8, padding: 10, fontSize: 14, marginTop: 0 },
   officeSearch: { borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, marginBottom: 8, fontSize: 13 },
   officeTeacherRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
   officeClose: { marginTop: 12, alignItems: 'center', paddingVertical: 11, borderRadius: 10 },

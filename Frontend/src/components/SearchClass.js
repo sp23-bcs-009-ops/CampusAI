@@ -148,7 +148,12 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
     let customLecs = [];
     if (timeMode === 'now') {
       const n = nowFilter();
-      timeDay = n.day;
+      if (mode === 'exam') {
+        const current = now || new Date();
+        timeDay = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+      } else {
+        timeDay = n.day;
+      }
       timeLec = n.lec;
     } else if (timeMode === 'specify') {
       customDays = days;
@@ -175,7 +180,9 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
     });
 
     filtered.sort((a, b) => {
-      const dayDiff = WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
+      const dayDiff = mode === 'exam'
+        ? String(a.day).localeCompare(String(b.day))
+        : WEEKDAY_ORDER.indexOf(a.day) - WEEKDAY_ORDER.indexOf(b.day);
       if (dayDiff) return dayDiff;
       const lecDiff = (lecNumOf(a) ?? 99) - (lecNumOf(b) ?? 99);
       if (lecDiff) return lecDiff;
@@ -213,6 +220,15 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
   const lecOptions = useMemo(() => (
     Object.keys(lectureSlots || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b)
   ), [lectureSlots]);
+  const examDates = useMemo(() => (
+    [...new Set(allSlots.map(slot => String(slot.day || '')).filter(day => /^\d{4}-\d{2}-\d{2}$/.test(day)))].sort()
+  ), [allSlots]);
+  const examSemesters = useMemo(() => (
+    [...new Set(allSlots
+      .filter(slot => !dept || String(slot.dept || slot._dept || slot.department || '').toLowerCase() === dept)
+      .map(slot => Number(slot.semester ?? slot.sem))
+      .filter(value => Number.isInteger(value) && value > 0))].sort((a, b) => a - b)
+  ), [allSlots, dept]);
 
 
   const chipStyle = (active) => [
@@ -236,7 +252,9 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
     </View>
   );
 
-  const semCount = dept ? (DEPT_MAX_SEM[dept] || 8) : 8;
+  const semesterOptions = mode === 'exam'
+    ? examSemesters.map(value => [String(value), `Sem ${value}`])
+    : Array.from({ length: dept ? (DEPT_MAX_SEM[dept] || 8) : 8 }, (_, i) => [String(i + 1), `Sem ${i + 1}`]);
 
   return (
     <>
@@ -265,15 +283,15 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
             {/* Time: Now / Specify time */}
             <Text style={[styles.filterLabel, { color: ts }]}>TIME</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-              <TouchableOpacity
+              {mode !== 'exam' && <TouchableOpacity
                 style={chipStyle(timeMode === 'now')}
                 onPress={() => pickOne(timeMode, setTimeMode, 'now')}>
                 <Text style={chipText(timeMode === 'now')}>🕐 Now</Text>
-              </TouchableOpacity>
+              </TouchableOpacity>}
               <TouchableOpacity
                 style={chipStyle(timeMode === 'specify')}
                 onPress={() => pickOne(timeMode, setTimeMode, 'specify')}>
-                <Text style={chipText(timeMode === 'specify')}>🕒 Specify time</Text>
+                <Text style={chipText(timeMode === 'specify')}>{mode === 'exam' ? 'Select dates / times' : '🕒 Specify time'}</Text>
               </TouchableOpacity>
             </View>
             {timeMode === 'now' && (
@@ -283,22 +301,23 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
             )}
             {timeMode === 'specify' && (
               <View style={{ marginBottom: 4 }}>
-                <FilterSection title="DAY">
-                  {DAYS.map(d => {
+                <FilterSection title={mode === 'exam' ? 'DATE' : 'DAY'}>
+                  {(mode === 'exam' ? examDates : DAYS).map(d => {
                     const active = days.includes(d);
                     return (
                       <TouchableOpacity key={d} style={chipStyle(active)} onPress={() => toggle(days, setDays, d)}>
-                        <Text style={chipText(active)}>{d}</Text>
+                        <Text style={chipText(active)}>{mode === 'exam' ? new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : d}</Text>
                       </TouchableOpacity>
                     );
                   })}
                 </FilterSection>
-                <FilterSection title="LECTURE #">
+                <FilterSection title={mode === 'exam' ? 'EXAM TIME' : 'LECTURE #'}>
                   {lecOptions.map(n => {
                     const active = lecs.includes(n);
+                    const timeLabel = lectureSlots?.[String(n)];
                     return (
                       <TouchableOpacity key={n} style={chipStyle(active)} onPress={() => toggle(lecs, setLecs, n)}>
-                        <Text style={chipText(active)}>Lec {n}</Text>
+                        <Text style={chipText(active)}>{mode === 'exam' && timeLabel ? `${timeLabel.start}–${timeLabel.end}` : `Lec ${n}`}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -323,7 +342,7 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
 
             {/* Semester — independent */}
             <FilterSection title="SEMESTER">
-              {[['', 'All'], ...Array.from({ length: semCount }, (_, i) => [String(i + 1), `Sem ${i + 1}`])].map(([key, label]) => {
+              {[['', 'All'], ...semesterOptions].map(([key, label]) => {
                 const active = sem === key;
                 return (
                   <TouchableOpacity key={key || 'all'} style={chipStyle(active)}
@@ -474,7 +493,7 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
                 </Text>
               )}
 
-              {/* Weekly-Timetable-style day groups (Mon → Sun order) */}
+              {/* Group regular slots by weekday and exams by date. */}
               {(() => {
                 const visible = results.slice(0, visibleCount);
                 const grouped = [];
@@ -488,7 +507,9 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
                 }
                 return grouped.map(({ day, slots }) => (
                   <View key={day}>
-                    <Text style={[styles.dayHeader, { color: tp }]}>{day}</Text>
+                    <Text style={[styles.dayHeader, { color: tp }]}>
+                      {mode === 'exam' ? new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : day}
+                    </Text>
                     {slots.map((slot, i) => {
                       const lec = lecNumOf(slot);
                       const accent = C.purple;
@@ -496,7 +517,7 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
                       return (
                         <View key={`${slot.room}-${day}-${lec}-${i}`} style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: accent }]}>
                           <View style={[styles.ttLecBadge, { backgroundColor: dark ? '#1A1A3E' : '#EDE9FF', borderColor: accent }]}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: badgeColor }}>{lec != null ? `L${lec}` : '—'}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: badgeColor }}>{mode === 'exam' ? slot.courseCode || 'Exam' : lec != null ? `L${lec}` : '—'}</Text>
                             <Text style={{ fontSize: 7, color: badgeColor, opacity: 0.8 }}>{slot.start || ''}{slot.start && slot.end ? '–' : ''}{slot.end || ''}</Text>
                           </View>
                           <View style={{ flex: 1 }}>
@@ -504,6 +525,11 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
                             <Text style={{ fontSize: 9, fontWeight: '700', color: ts, marginTop: 2 }}>
                               {classLabelOf(slot)}
                             </Text>
+                            {mode === 'exam' && (
+                              <Text style={{ fontSize: 9, color: ts, marginTop: 2 }}>
+                                Strength: {slot.strength ?? '—'} · Invigilators: {slot.invigilators || '—'}
+                              </Text>
+                            )}
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
                               <Text style={{ fontSize: 10, color: ts }}>{slot.prof || slot.teacher}</Text>
                               <Text style={{ fontSize: 10, fontWeight: '700', color: C.purple }}>{slot.room}</Text>

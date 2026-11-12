@@ -36,6 +36,7 @@ availability from Firestore, and COMSATS University info from the official websi
 | `knowledge_pack.py` | Approved Attock/COMSATS website knowledge pack |
 | `text_pdf_layout.py` | PyMuPDF text, coordinate, and timetable-grid extraction |
 | `rule_based_text_pdf.py` | Python-only cell parsing used by `/upload-timetable` |
+| `exam_timetable_upload.py` | Validates Excel datesheets and publishes Exam Mode timetable documents |
 | `teacher_matching.py` | Conservative matching to canonical Teacher List names |
 
 ## Run locally
@@ -83,6 +84,9 @@ use Groq only with retrieved records or live page text.
   (429 when exceeded), `2/minute` on `/comsats/refresh`.
 - **API key auth** — set `CAMPUS_AI_API_KEY=<secret>` and every data endpoint
   requires the header `X-API-Key: <secret>`. Leave unset for open dev mode.
+- **Exam datesheets** — `/upload-exam-timetable` accepts `.xlsx` uploads only
+  from staff while Exam Mode is active. It validates all worksheets before
+  publishing, retaining strength and invigilator details for all users.
 
 ## Chat memory
 
@@ -107,3 +111,4 @@ use Groq only with retrieved records or live page text.
 | GET | `/comsats/status` | Official website source (not stored in Firebase) |
 | GET | `/comsats/refresh` | Live reachability check of official pages |
 | POST | `/upload-timetable` | Python-only PDF timetable parsing and formal collection save |
+| POST | `/upload-exam-timetable` | Staff-only Excel datesheet validation and Exam Mode publication |
