@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
-import { DEPT_MAX_SEM, NOTIF_TYPES, can } from '../constants/config';
+import { DEPT_MAX_SEM, NOTIF_TYPES, can, hasStaffRole } from '../constants/config';
 import { dateToDayName } from '../utils/helpers';
 import NotifCard from '../components/class/NotifCard';
 import PostModal from '../components/class/PostModal';
@@ -41,7 +41,7 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
 
   const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
-  const isStaff = user?.type === 'staff';
+  const isStaff = hasStaffRole(user);
   // During Exam mode the reflected timetable is the exam schedule, so adding
   // notifications (including Cancel Class) is locked until Regular returns.
   const examModeActive = (schedule?.mode || 'regular') === 'exam';

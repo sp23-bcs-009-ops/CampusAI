@@ -3,13 +3,14 @@ import {
   Animated, PanResponder, Modal, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
+import { hasStaffRole } from '../constants/config';
 
 function formatDate(value) {
   if (!value) return '';
   return new Date(Number(value)).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement }) {
+export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement, openRequest = 0 }) {
   const [open, setOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -19,6 +20,7 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
   const slide = useRef(new Animated.Value(-180)).current;
   const dragX = useRef(new Animated.Value(0)).current;
   const dismissTimer = useRef(null);
+  const lastOpenRequest = useRef(openRequest);
 
   function dismissActive(markAsRead = true) {
     if (!active) return;
@@ -68,7 +70,7 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
   const ts = dark ? '#B9A7FF' : '#6C47D4';
   const bdr = dark ? '#3D2B8E' : '#E2E0F5';
-  const canManage = user?.type === 'staff';
+  const canManage = hasStaffRole(user);
 
   function showComposer(item = null) {
     setEditing(item);
@@ -89,6 +91,13 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
     setOpen(true);
     markAllRead();
   }
+
+  useEffect(() => {
+    if (openRequest && openRequest !== lastOpenRequest.current) {
+      lastOpenRequest.current = openRequest;
+      openHistory();
+    }
+  }, [openRequest]);
 
   return (
     <>

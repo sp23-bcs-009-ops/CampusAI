@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, Pressable } from 'react-native';
 import { C } from '../../constants/colors';
-import { LF_CATS } from '../../constants/config';
+import { hasStaffRole, LF_CATS } from '../../constants/config';
 import { fmtDate } from '../../utils/helpers';
 
 export default function LFCard({ item, dark, user, onResolve, onEdit, onDelete }) {
@@ -36,8 +36,8 @@ export default function LFCard({ item, dark, user, onResolve, onEdit, onDelete }
   const allUris     = imageUris.length > 0 ? imageUris : (fallbackUri ? [fallbackUri] : []);
 
   // Permissions
-  const canResolve = user?.type === 'staff';
-  const canModify  = user?.type === 'staff';
+  const canResolve = hasStaffRole(user);
+  const canModify  = hasStaffRole(user);
 
   return (
     <View style={[styles.card, { backgroundColor: bg, borderColor: bdr, opacity: item.resolved ? 0.65 : 1 }]}>

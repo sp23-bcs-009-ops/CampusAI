@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
 import { C } from '../constants/colors';
 import { SS } from '../constants/colors';
-import { DEPT_MAP, DEPT_MAX_SEM, DEPT_FLOOR_ROOMS, FALLBACK_LECTURE_SLOTS, ISSUE_CATEGORIES, can } from '../constants/config';
+import { DEPT_MAP, DEPT_MAX_SEM, DEPT_FLOOR_ROOMS, FALLBACK_LECTURE_SLOTS, ISSUE_CATEGORIES, can, hasStaffRole } from '../constants/config';
 import { getAiServerUrl } from '../constants/network';
 import { toMin, getFullRoomStatus, getRoomTimetableSlots } from '../utils/helpers';
 import { fsAdd, fsDelete, fsList, fsSet, fsUpdate, getAuthTokens } from '../firebase/firestore';
@@ -23,13 +23,14 @@ import {
   parseClockTime,
   parseLocalDate,
 } from '../utils/developerClock';
+import { getClassMuteKey } from '../utils/classMutes';
 
 
 export default function HomeScreen({
   user, dark, now, timetable, lectureSlots, lectureSlotsByDepartmentSemester,
   timetableDocuments = [], timetableManifest,
   arrangedClasses, cancelledSlots,
-  ttMeta, onTTUploaded, onUpdateUser, isGuest,
+  ttMeta, onTTUploaded, onUpdateUser, onToggleClassMute, isGuest,
   schedule, examTimetable, officeTarget, onOfficeTargetHandled,
 }) {
   const [selectedDepartment, setSelectedDepartment] = useState('cs');
@@ -59,6 +60,18 @@ export default function HomeScreen({
   function updateDeveloperClock(nextClock) {
     setDeveloperClock(nextClock);
     onUpdateUser?.({ ...user, developerClock: nextClock });
+  }
+
+  function resetDeveloperClock() {
+    const current = new Date();
+    setDeveloperClock({
+      mode: 'weekday',
+      weekday: String(current.getDay()),
+      date: formatLocalDate(current),
+      time: `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`,
+    });
+    onUpdateUser?.({ ...user, developerClock: null });
+    setShowDeveloperClock(false);
   }
 
   const roomDepartment = (roomId) => {
@@ -109,11 +122,11 @@ export default function HomeScreen({
   const viewerId = user?.uid || user?.email || '';
   const visibleIssueReports = issueReports.filter(report =>
     report.status === 'acknowledged' || report.status === 'completed'
-      || user?.type === 'staff'
+      || hasStaffRole(user)
       || report.reporterId === viewerId
   );
   const markerReports = visibleIssueReports.filter(report =>
-    report.status !== 'pending' || user?.type === 'staff' || report.reporterId === viewerId
+    report.status !== 'pending' || hasStaffRole(user) || report.reporterId === viewerId
   );
   const reportedIssues = Object.fromEntries(
     Object.entries(markerReports.reduce((groups, report) => {
@@ -169,7 +182,8 @@ export default function HomeScreen({
 
   const todayClasses = Object.values(visibleTimetable || {})
     .flat()
-    .filter(s => s?.isMine && s.day === dayName)
+    .filter(s => s?.isMine && !s?.isMuted
+      && (s.day === dayName || (isExam && String(s.day).slice(0, 10) === formatLocalDate(now))))
     .sort((a, b) => toMin(a.start) - toMin(b.start));
   const currentClass = todayClasses.find(s => cur >= toMin(s.start) && cur < toMin(s.end));
   const currentClassDepartment = currentClass?.room ? roomDepartment(currentClass.room) : null;
@@ -378,10 +392,10 @@ export default function HomeScreen({
         )}
 
         {/* Admin: TT Upload */}
-        {(isExam ? user?.type === 'staff' : can.uploadTimetable(user)) && (
+        {(isExam ? hasStaffRole(user) : can.uploadTimetable(user)) && (
           <AdminTTUpload dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
         )}
-        {user?.type === 'staff' && (
+        {hasStaffRole(user) && (
           <TimetableAdminPanel
             dark={dark} user={user} mode={currentMode}
             documents={isExam ? (examTimetable?.rawDocuments || []) : timetableDocuments}
@@ -469,6 +483,9 @@ export default function HomeScreen({
                 Enter a valid time (HH:mm){developerClock.mode === 'date' ? ' and calendar date (YYYY-MM-DD)' : ''}.
               </Text>
             )}
+            <TouchableOpacity onPress={resetDeveloperClock} style={[styles.closeBtn, { backgroundColor: dark ? '#27204A' : '#EDE9FF', marginTop: 10 }]}>
+              <Text style={{ color: C.purple, fontSize: 13, fontWeight: '700' }}>Reset to current time</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowDeveloperClock(false)} style={[styles.closeBtn, { backgroundColor: C.purple }]}>
               <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Done</Text>
             </TouchableOpacity>
@@ -485,21 +502,21 @@ export default function HomeScreen({
           <Text style={{ color: ts, fontSize: 12, marginTop: 5 }}>{officeRoom?.label} ({officeRoom?.roomId}) · {DEPT_MAP[officeRoom?.department] || officeRoom?.department} · Floor {officeRoom?.floor}</Text>
           {!!officeError && <Text style={{ color: '#DC2626', fontSize: 12, marginTop: 8 }}>{officeError}</Text>}
           <Text style={{ color: tp, fontSize: 13, fontWeight: '800', marginTop: 16, marginBottom: 4 }}>Assigned teachers</Text>
-          <ScrollView style={{ maxHeight: user?.type === 'staff' ? 180 : 330 }}>
+          <ScrollView style={{ maxHeight: hasStaffRole(user) ? 180 : 330 }}>
             {officeTeachers.map(teacher => (
               <View key={teacher._docId || teacher.name} style={[styles.officeTeacherRow, { borderBottomColor: bdr }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: tp, fontSize: 14, fontWeight: '700' }}>{teacher.name}</Text>
                   <Text style={{ color: ts, fontSize: 11 }}>{teacher.department || 'Department not set'}{teacher.position ? ` · ${teacher.position}` : ''}</Text>
                 </View>
-                {user?.type === 'staff' && <TouchableOpacity disabled={officeSaving} onPress={() => removeTeacherOffice(teacher)}>
+                {hasStaffRole(user) && <TouchableOpacity disabled={officeSaving} onPress={() => removeTeacherOffice(teacher)}>
                   <Text style={{ color: '#DC2626', fontSize: 12, fontWeight: '800' }}>{officeSaving ? '…' : 'Remove'}</Text>
                 </TouchableOpacity>}
               </View>
             ))}
             {!officeTeachers.length && <Text style={{ color: ts, paddingVertical: 10 }}>No teachers are assigned to this office yet.</Text>}
           </ScrollView>
-          {user?.type === 'staff' && <>
+          {hasStaffRole(user) && <>
             <Text style={{ color: tp, fontSize: 13, fontWeight: '800', marginTop: 14 }}>Add a teacher</Text>
             <TextInput value={officeSearch} onChangeText={setOfficeSearch} placeholder="Search teacher" placeholderTextColor={ts}
               style={[styles.officeSearch, { backgroundColor: bg, color: tp, borderColor: bdr }]} />
@@ -529,6 +546,7 @@ export default function HomeScreen({
           roomId={selRoom} status={selectedRoomStatus} dark={dark}
           timetable={visibleTimetable} now={now} slots={activeLectureSlots} mode={currentMode}
           user={user} issueReports={visibleIssueReports}
+          onToggleClassMute={onToggleClassMute}
           onCreateIssue={createIssueReport} onUpdateIssue={updateIssueReport} onDeleteIssue={deleteIssueReport}
           onClose={() => setSelRoom(null)}
         />
@@ -542,6 +560,7 @@ export default function HomeScreen({
           semester={user?.type === 'staff' ? null : (user?.semester || 7)}
           department={user?.type === 'staff' ? '' : user?.dept}
           user={user}
+          onToggleClassMute={onToggleClassMute}
           lectureSlotsByDepartmentSemester={lectureSlotsByDepartmentSemester}
           ttMeta={isExam ? (examTimetable?.meta || null) : ttMeta}
           onClose={() => setShowTT(false)}
@@ -552,7 +571,7 @@ export default function HomeScreen({
 }
 
 // ─── Room Popup ───────────────────────────────────────────────────────────
-function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regular', user, issueReports = [], onCreateIssue, onUpdateIssue, onDeleteIssue, onClose }) {
+function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regular', user, issueReports = [], onToggleClassMute, onCreateIssue, onUpdateIssue, onDeleteIssue, onClose }) {
   const { status: st, slot, issue } = status;
   const c = SS[st][dark ? 'd' : 'l'];
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
@@ -568,9 +587,10 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
   const categories = isLab ? ISSUE_CATEGORIES.lab : ISSUE_CATEGORIES.room;
   const roomIssues = issueReports.filter(report => report.roomId === roomId);
   const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
+  const date = formatLocalDate(now);
   const curM = now.getHours() * 60 + now.getMinutes();
   const next = getRoomTimetableSlots(roomId, timetable)
-    .filter(s => s.day === day && toMin(s.start) > curM)
+    .filter(s => (s.day === day || (mode === 'exam' && String(s.day).slice(0, 10) === date)) && toMin(s.start) > curM)
     .sort((a, b) => toMin(a.start) - toMin(b.start))[0];
 
   return (
@@ -606,6 +626,15 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
             {mode === 'holiday' ? 'Currently Holiday — no timetable is active.' : mode === 'exam' ? 'No exam scheduled in this slot.' : 'No class right now.'}
           </Text>
         )}
+        {slot && (slot.isMine || slot.isMuted) && onToggleClassMute && (
+          <TouchableOpacity
+            onPress={() => onToggleClassMute(slot, roomId, mode)}
+            style={[styles.reportIssueButton, { marginTop: 10, backgroundColor: slot.isMuted ? '#DCFCE7' : '#FEE2E2' }]}>
+            <Text style={{ color: slot.isMuted ? '#166534' : '#B91C1C', fontSize: 12, fontWeight: '800' }}>
+              {slot.isMuted ? 'Unmute this class' : 'Mute this class'}
+            </Text>
+          </TouchableOpacity>
+        )}
         {next && (
           <View style={[styles.nextBox, { backgroundColor: dark ? '#1A1A3E' : '#F0EEFF', borderColor: bdr }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -629,7 +658,7 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
 
             {roomIssues.length > 0 && roomIssues.map(report => {
               const categoryLabel = categories.find(item => item.key === report.category)?.label || report.category;
-              const staff = user.type === 'staff';
+              const staff = hasStaffRole(user);
               return (
                 <View key={report._docId} style={[styles.reportCard, { backgroundColor: dark ? '#1A1A3E' : '#F4F7FF', borderColor: report.status === 'pending' ? '#93C5FD' : '#60A5FA' }]}> 
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
@@ -697,13 +726,14 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
 }
 
 // ─── Timetable Modal ──────────────────────────────────────────────────────
-function TimetableModal({ dark, timetable, mode = 'regular', semester, department, user, lectureSlotsByDepartmentSemester, ttMeta, onClose }) {
+function TimetableModal({ dark, timetable, mode = 'regular', semester, department, user, lectureSlotsByDepartmentSemester, ttMeta, onToggleClassMute, onClose }) {
   const isStaff = user?.type === 'staff';
   const isExamView = mode === 'exam';
   const [staffDept, setStaffDept] = useState('');
   const [staffSemester, setStaffSemester] = useState('');
   const [teacherSearch, setTeacherSearch] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState('');
+  const [selectedMuteKey, setSelectedMuteKey] = useState(null);
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
   const ts = dark ? '#9B7EF8' : '#6C47D4';
   const bdr = dark ? '#2A1C6B' : '#E2E0F5';
@@ -760,6 +790,8 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
       prof: slot.prof || slot.teacher,
       room: slot.room || Object.entries(timetable || {}).find(([, list]) => list?.includes(slot))?.[0] || '',
       mine: Boolean(slot.isMine ?? slot.mine),
+      isMuted: Boolean(slot.isMuted),
+      muteKey: slot.muteKey || getClassMuteKey(slot, slot.room, mode),
     });
   }
   const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -866,11 +898,17 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
             <View key={day || idx} style={{ padding: 12 }}>
               <Text style={{ fontSize: 12, fontWeight: '800', color: tp, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{displayExamDate(day)}</Text>
               {(daySlots || []).map((s, i) => {
-                const accent = isExamView ? '#DC2626' : (s.mine ? '#EF4444' : C.purple);
-                const badgeColor = isExamView ? '#B91C1C' : (s.mine ? '#B91C1C' : C.purple);
+                const canMute = Boolean(s.mine || s.isMuted) && !!onToggleClassMute;
+                const selected = selectedMuteKey === s.muteKey;
+                const accent = s.mine && !s.isMuted ? '#EF4444' : C.purple;
+                const badgeColor = s.mine && !s.isMuted ? '#B91C1C' : C.purple;
                 return (
-                  <View key={i} style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: accent }]}>
-                    <View style={[styles.ttLecBadge, { backgroundColor: isExamView || s.mine ? '#FEE2E2' : '#EDE9FF', borderColor: accent }]}>
+                  <View key={s.muteKey || i}>
+                    <TouchableOpacity
+                      activeOpacity={canMute ? 0.75 : 1}
+                      onPress={canMute ? () => setSelectedMuteKey(selected ? null : s.muteKey) : undefined}
+                      style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: accent, opacity: s.isMuted ? 0.65 : 1 }]}>
+                    <View style={[styles.ttLecBadge, { backgroundColor: s.mine && !s.isMuted ? '#FEE2E2' : '#EDE9FF', borderColor: accent }]}>
                       {isExamView ? (
                         <>
                           <Text style={{ fontSize: 8, fontWeight: '800', color: badgeColor }}>{s.start}</Text>
@@ -892,11 +930,25 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
                       </Text>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
                         <Text style={{ fontSize: 10, color: ts }}>{s.prof}</Text>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: s.mine ? '#B91C1C' : C.purple }}>{s.room}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: s.mine && !s.isMuted ? '#B91C1C' : C.purple }}>{s.room}</Text>
                       </View>
                       {isExamView && s.courseCode ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Course code: {s.courseCode}</Text> : null}
                       {isExamView && s.invigilators ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Invigilators: {s.invigilators}</Text> : null}
+                      {s.isMuted && <Text style={{ fontSize: 9, color: '#B91C1C', fontWeight: '800', marginTop: 3 }}>Muted from My Class</Text>}
                     </View>
+                    </TouchableOpacity>
+                    {canMute && selected && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          onToggleClassMute(s, s.room, mode);
+                          setSelectedMuteKey(null);
+                        }}
+                        style={{ backgroundColor: s.isMuted ? '#DCFCE7' : '#FEE2E2', borderRadius: 9, padding: 9, alignItems: 'center', marginTop: 4 }}>
+                        <Text style={{ color: s.isMuted ? '#166534' : '#B91C1C', fontSize: 11, fontWeight: '800' }}>
+                          {s.isMuted ? 'Unmute this class' : 'Mute this class'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 );
               })}
@@ -909,7 +961,7 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
 }
 
 // ─── Admin TT Upload ──────────────────────────────────────────────────────
-function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
+export function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
   const [uploading, setUploading] = useState(false);
   const [status, setStatus] = useState(null);
   const [msg, setMsg] = useState('');

@@ -7,24 +7,38 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "backgroundColor": "#3D2B8E"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "edu.cuiatk.campusai"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#3D2B8E"
       },
-      "package": "edu.cuiatk.campusai"
+      "package": "edu.cuiatk.campusai",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-document-picker",
       "expo-image-picker",
+      "expo-notifications",
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#3D2B8E"
+        }
+      ],
+      "expo-status-bar"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1a25d18a-d3df-49b2-8648-a695871356ea"
+      }
+    }
   }
 }

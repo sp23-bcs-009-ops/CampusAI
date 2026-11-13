@@ -113,12 +113,13 @@ export function getFullRoomStatus(id, now, timetable, arrangedClasses, cancelled
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const day      = DAYS[now.getDay()];
   const cur      = now.getHours() * 60 + now.getMinutes();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   // Regular timetable
   const base = (() => {
     const active = getRoomTimetableSlots(id, timetable).find(s => {
-      if (s.day !== day || cur < toMin(s.start) || cur >= toMin(s.end)) return false;
+      const slotDay = String(s.day || '').slice(0, 10);
+      if ((slotDay !== day && slotDay !== todayStr) || cur < toMin(s.start) || cur >= toMin(s.end)) return false;
       // BUG FIX: check cancellation by lectureNum match rather than start-time string comparison
       // This is more reliable since start times can vary slightly
       const cancelled = (cancelledSlots || []).some(cs => {
@@ -129,7 +130,7 @@ export function getFullRoomStatus(id, now, timetable, arrangedClasses, cancelled
       return !cancelled;
     });
     if (!active) return { status: 'free', slot: null };
-    return { status: active.isMine ? 'mine' : 'occupied', slot: active };
+    return { status: active.isMine && !active.isMuted ? 'mine' : 'occupied', slot: active };
   })();
 
   if (base.status !== 'free') return base;

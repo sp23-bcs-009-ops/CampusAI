@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { fsDelete, fsList } from '../firebase/firestore';
 import { normalizeTeacherName, upsertTeacherRecord } from '../firebase/teachers';
+import { hasStaffRole } from '../constants/config';
 
 const EMPTY_FORM = { name: '', department: 'CS', position: '' };
 
@@ -134,7 +135,7 @@ export default function TeacherDirectoryScreen({ dark, user, subjectsBySemester 
   }
 
   function handleDeleteTeacher() {
-    if (user?.type !== 'staff' || !selectedTeacher?._docId) return;
+    if (!hasStaffRole(user) || !selectedTeacher?._docId) return;
     setDeleteError('');
     const timetableRows = Object.values(subjectsBySemester || {}).flat();
     const assignedClass = timetableRows.find(row => sameTeacherName(
@@ -184,7 +185,7 @@ export default function TeacherDirectoryScreen({ dark, user, subjectsBySemester 
             <Text style={styles.title}>Teacher List</Text>
             <Text style={styles.subtitle}>{teachers.length} teachers · Firestore</Text>
           </View>
-          {user?.type === 'staff' && (
+          {hasStaffRole(user) && (
             <TouchableOpacity onPress={() => { setForm(EMPTY_FORM); setError(''); setShowAdd(true); }} style={styles.addButton}>
               <Text style={styles.addButtonText}>＋ Add</Text>
             </TouchableOpacity>
@@ -268,7 +269,7 @@ export default function TeacherDirectoryScreen({ dark, user, subjectsBySemester 
               <TouchableOpacity onPress={() => setSelectedTeacher(null)} style={[styles.action, { backgroundColor: dark ? '#27204A' : '#EEEAFB' }]}>
                 <Text style={{ color: muted, fontWeight: '700' }}>Close</Text>
               </TouchableOpacity>
-              {user?.type === 'staff' && !!selectedTeacher?._docId && (
+              {hasStaffRole(user) && !!selectedTeacher?._docId && (
                 <TouchableOpacity disabled={deleting} onPress={handleDeleteTeacher} style={[styles.action, { backgroundColor: '#FEE2E2' }]}>
                   <Text style={{ color: '#B91C1C', fontWeight: '800' }}>{deleting ? 'Deleting…' : 'Delete'}</Text>
                 </TouchableOpacity>

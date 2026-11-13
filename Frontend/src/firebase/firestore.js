@@ -295,3 +295,15 @@ export async function saveUserProfile(email, profile) {
 export async function getUserProfile(email) {
   return await fsGet(`users/${email.replace(/\./g, '_')}`);
 }
+
+export async function getNotificationSettings(uid) {
+  return fsGet(`notificationSettings/${uid}`);
+}
+
+export async function saveNotificationSettings(uid, settings) {
+  return fsSet(`notificationSettings/${uid}`, settings);
+}
+
+export async function saveNotificationDevice(uid, deviceId, device) {
+  return fsSet(`notificationDevices/${uid}/devices/${deviceId}`, device);
+}

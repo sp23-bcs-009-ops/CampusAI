@@ -61,6 +61,7 @@ export default function LoginScreen({ onLogin, onGuest }) {
       }
       const dept = getDept(gEmail);
       onLogin({
+        uid: auth.localId,
         email: gEmail,
         type: 'student',
         name: auth.displayName || gEmail.split('@')[0],
@@ -104,6 +105,7 @@ export default function LoginScreen({ onLogin, onGuest }) {
       const profile = await getUserProfile(email);
 
 if (profile) {
+  profile.uid = auth.localId;
   if (profile.type === 'teacher' && profile.fullName) {
     const teacher = await upsertTeacherRecord({ name: profile.fullName });
     if (profile.teacherId !== teacher._docId) {
@@ -114,6 +116,7 @@ if (profile) {
   onLogin(profile);
 } else {
   const profile = buildUserObj(email);
+  profile.uid = auth.localId;
   if (profile.type === 'teacher') {
     const teacher = await upsertTeacherRecord({ name: profile.fullName });
     profile.teacherId = teacher._docId;
@@ -134,6 +137,7 @@ if (profile) {
       const dept = 'cs';
       const departmentLabel = 'Test Account';
       onLogin({
+        uid: auth.localId,
         email: `test-${type}@local.test`,
         type: normalizedType,
         testMode: true,
@@ -181,6 +185,7 @@ async function handleCheckVerification() {
     const user = await authGetUser(idToken);
     if (user?.emailVerified) {
       const profile = buildUserObj(email);
+      profile.uid = user.localId;
       if (profile.type === 'teacher') {
         const teacher = await upsertTeacherRecord({ name: profile.fullName });
         profile.teacherId = teacher._docId;

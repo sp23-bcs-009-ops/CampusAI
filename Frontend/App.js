@@ -1,13 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from 'react-native-svg';
 import { C } from './src/constants/colors';
-import { NAV_TABS, GUEST_NAV_TABS } from './src/constants/config';
+import { NAV_TABS, GUEST_NAV_TABS, hasStaffRole } from './src/constants/config';
 import useTimetable from './src/hooks/useTimetable';
 import useNotifs from './src/hooks/useNotifs';
-import { getAuthTokens, refreshAuthToken, clearAuthToken } from './src/firebase/firestore';
+import {
+  clearAuthToken,
+  getAuthTokens,
+  getNotificationSettings,
+  refreshAuthToken,
+  saveNotificationDevice,
+  saveNotificationSettings,
+  authGetUser,
+} from './src/firebase/firestore';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -18,12 +26,15 @@ import ChatScreen from './src/screens/ChatScreen';
 import GuestModeScreen from './src/screens/GuestModeScreen';
 import InternalScreen from './src/screens/InternalScreen';
 import TeacherDirectoryScreen from './src/screens/TeacherDirectoryScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import EmergencyAnnouncements from './src/components/EmergencyAnnouncements';
 import useEmergencyAnnouncements from './src/hooks/useEmergencyAnnouncements';
 import useScheduleMode from './src/hooks/useScheduleMode';
 import ScheduleModePicker from './src/components/ScheduleModePicker';
 import { buildClashingSubjectAliasMap, normalizeSubjectKey, resolveSubjectAlias } from './src/utils/clashingSubjectAliases';
 import { getDeveloperNow } from './src/utils/developerClock';
+import { getClassMuteKey } from './src/utils/classMutes';
+import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
 
 const NAV_ICON_COLORS = {
   chat: { light: '#0284C7', dark: '#38BDF8' },
@@ -35,11 +46,57 @@ const NAV_ICON_COLORS = {
   about: { light: '#0E7C86', dark: '#14B8A6' },
 };
 
+function localUserSettingsKey(user) {
+  const identity = String(user?.uid || user?.email || '').trim().toLowerCase();
+  return identity ? `campusai_user_settings:${identity}` : null;
+}
+
+async function restoreLocalUserSettings(user) {
+  const key = localUserSettingsKey(user);
+  if (!key) return user;
+  const serialized = await AsyncStorage.getItem(key);
+  if (!serialized) return user;
+
+  let settings;
+  try {
+    settings = JSON.parse(serialized);
+  } catch (error) {
+    console.warn('Could not parse saved user settings.', error);
+    return user;
+  }
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    console.warn('Saved user settings have an unexpected format.');
+    return user;
+  }
+
+  return {
+    ...user,
+    staffRoleEnabled: settings.staffRoleEnabled === true,
+    mutedClassKeys: Array.isArray(settings.mutedClassKeys)
+      ? settings.mutedClassKeys.filter(value => typeof value === 'string')
+      : (user.mutedClassKeys || []),
+  };
+}
+
+function notificationProfileSettings(user) {
+  return {
+    enabled: user.notificationEnabled !== false,
+    dept: user.dept || '',
+    semester: Number(user.semester) || 0,
+    role: user.type || '',
+    displayName: user.fullName || user.name || '',
+    subjects: JSON.stringify(Array.isArray(user.subjects) ? user.subjects : []),
+    mutedClassKeys: JSON.stringify(Array.isArray(user.mutedClassKeys) ? user.mutedClassKeys : []),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export default function App() {
   const [screen, setScreen] = useState('login');
   const [user, setUser] = useState(null);
   const [dark, setDark] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [emergencyOpenRequest, setEmergencyOpenRequest] = useState(0);
   const [officeTarget, setOfficeTarget] = useState(null);
   const [navStart, setNavStart] = useState(1);
   const navScrollRef = useRef(null);
@@ -49,13 +106,15 @@ export default function App() {
   // Guest mode: only Website AI + About Us are reachable — everything else
   // (Home, Class Notification, Teacher list, etc.) is blocked for guests.
   const isGuest = user?.type === 'guest';
-  const navItems = isGuest ? GUEST_NAV_TABS : NAV_TABS;
+  const staffAccess = hasStaffRole(user);
+  const navItems = isGuest ? GUEST_NAV_TABS : NAV_TABS.filter(tab => tab.key !== 'settings' || staffAccess);
   const maxNavStart = Math.max(0, navItems.length - 3);
   const navStartClamped = Math.min(navStart, maxNavStart);
 
   const navViewportWidth = Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
   const navItemWidth = navViewportWidth / Math.min(3, Math.max(1, navItems.length));
   const [wallClockNow, setWallClockNow] = useState(new Date());
+  const pushRegistrationAttempted = useRef(new Set());
   const now = getDeveloperNow(wallClockNow, user);
   const emergency = useEmergencyAnnouncements();
   const schedule = useScheduleMode();
@@ -65,20 +124,51 @@ export default function App() {
   useEffect(() => {
     if (isGuest) {
       if (activeTab !== 'chat' && activeTab !== 'about') setActiveTab('chat');
-    } else if (activeTab === 'about') {
+    } else if (activeTab === 'about' || (activeTab === 'settings' && !staffAccess)) {
       setActiveTab('home');
     }
-  }, [isGuest, activeTab]);
+  }, [isGuest, activeTab, staffAccess]);
 
   // ── Persistent login (profile + Firebase auth token) ─────────────────────
   useEffect(() => {
-    AsyncStorage.getItem('campusai_user').then(val => {
-      if (val) { setUser(JSON.parse(val)); setScreen('main'); }
-    }).catch(() => { });
-    // Restore the Firebase session so writes stay authenticated after restart
-    AsyncStorage.getItem('campusai_refresh_token').then(tok => {
-      if (tok) refreshAuthToken(tok);
-    }).catch(() => { });
+    let active = true;
+    async function restoreSession() {
+      const [storedUser, refreshToken] = await Promise.all([
+        AsyncStorage.getItem('campusai_user'),
+        AsyncStorage.getItem('campusai_refresh_token'),
+      ]);
+      if (refreshToken) {
+        await refreshAuthToken(refreshToken);
+      }
+      if (!storedUser) return;
+
+      let restoredUser = await restoreLocalUserSettings(JSON.parse(storedUser));
+      const idToken = getAuthTokens().idToken;
+      if (idToken && !restoredUser.uid) {
+        try {
+          const authUser = await authGetUser(idToken);
+          restoredUser = { ...restoredUser, uid: authUser?.localId || restoredUser.uid };
+        } catch (error) {
+          console.warn('Could not restore the Firebase user ID.', error);
+        }
+      }
+      if (restoredUser.uid) {
+        const notificationSettings = await getNotificationSettings(restoredUser.uid);
+        if (typeof notificationSettings?.enabled === 'boolean') {
+          restoredUser.notificationEnabled = notificationSettings.enabled;
+        }
+        saveNotificationSettings(restoredUser.uid, notificationProfileSettings(restoredUser))
+          .catch(error => console.warn('Failed to sync notification preferences.', error));
+      }
+      if (!active) return;
+      setUser(restoredUser);
+      setScreen('main');
+      AsyncStorage.setItem('campusai_user', JSON.stringify(restoredUser)).catch(error => {
+        console.warn('Failed to restore user session.', error);
+      });
+    }
+    restoreSession().catch(error => console.warn('Failed to restore user session.', error));
+    return () => { active = false; };
   }, []);
 
   function persistAuthToken() {
@@ -88,23 +178,103 @@ export default function App() {
     }
   }
 
-  function handleLogin(u) {
-    setUser(u);
+  async function handleLogin(u) {
+    let restoredUser = u;
+    try {
+      restoredUser = await restoreLocalUserSettings(u);
+    } catch (error) {
+      console.warn('Failed to restore local user settings.', error);
+    }
+    if (restoredUser.uid) {
+      const notificationSettings = await getNotificationSettings(restoredUser.uid);
+      if (typeof notificationSettings?.enabled === 'boolean') {
+        restoredUser = { ...restoredUser, notificationEnabled: notificationSettings.enabled };
+      }
+      saveNotificationSettings(restoredUser.uid, notificationProfileSettings(restoredUser))
+        .catch(error => console.warn('Failed to sync notification preferences.', error));
+    }
+    setUser(restoredUser);
     // Start every session on a tab that belongs to its role — this also
     // clears a stale guest "About Us" tab when signing in as a real user.
-    setActiveTab(u?.type === 'guest' ? 'chat' : 'home');
-    AsyncStorage.setItem('campusai_user', JSON.stringify(u)).catch(() => { });
+    setActiveTab(restoredUser?.type === 'guest' ? 'chat' : 'home');
+    AsyncStorage.setItem('campusai_user', JSON.stringify(restoredUser)).catch(() => { });
     persistAuthToken();
     setScreen('main');
   }
-  function handleUpdate(u) {
+  function handleUpdate(u, { persistNotificationPreferences = true } = {}) {
     setUser(u);
     AsyncStorage.setItem('campusai_user', JSON.stringify(u)).catch(() => { });
+    if (persistNotificationPreferences && u.uid) {
+      saveNotificationSettings(u.uid, notificationProfileSettings(u))
+        .catch(error => console.warn('Failed to sync notification preferences.', error));
+    }
+    const settingsKey = localUserSettingsKey(u);
+    if (settingsKey) {
+      AsyncStorage.setItem(settingsKey, JSON.stringify({
+        staffRoleEnabled: u.staffRoleEnabled === true,
+        mutedClassKeys: Array.isArray(u.mutedClassKeys) ? u.mutedClassKeys : [],
+      })).catch(error => console.warn('Failed to save local user settings.', error));
+    }
   }
   function handleRoleChange(type) {
     handleUpdate({ ...user, type });
   }
+  function handleToggleClassMute(slot, room, mode) {
+    const key = getClassMuteKey(slot, room, mode);
+    const muted = new Set(user?.mutedClassKeys || []);
+    if (muted.has(key)) muted.delete(key);
+    else muted.add(key);
+    handleUpdate({ ...user, mutedClassKeys: [...muted] });
+  }
+  async function registerPushDevice(uid) {
+    const pushDevice = await registerForPushNotificationsAsync();
+    if (!pushDevice) return false;
+    let deviceId = await AsyncStorage.getItem('campusai_notification_device_id');
+    if (!deviceId) {
+      deviceId = `device_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      await AsyncStorage.setItem('campusai_notification_device_id', deviceId);
+    }
+    await saveNotificationDevice(uid, deviceId, {
+      token: pushDevice.token,
+      platform: pushDevice.platform,
+      updatedAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
+  async function handleToggleNotifications(enabled) {
+    const uid = user?.uid;
+    if (!uid) {
+      Alert.alert('Notifications unavailable', 'Sign in again before changing notification settings.');
+      return;
+    }
+    try {
+      if (enabled) {
+        const registered = await registerPushDevice(uid);
+        if (!registered) {
+          Alert.alert('Permission required', 'Allow notifications in your device settings to turn alerts on.');
+          return;
+        }
+      }
+      const updatedUser = { ...user, notificationEnabled: enabled };
+      await saveNotificationSettings(uid, notificationProfileSettings(updatedUser));
+      if (user?.uid === uid) {
+        handleUpdate(updatedUser, { persistNotificationPreferences: false });
+      }
+    } catch (error) {
+      Alert.alert('Could not update notifications', error.message || 'Please try again.');
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.uid || user.notificationEnabled === false || pushRegistrationAttempted.current.has(user.uid)) return;
+    pushRegistrationAttempted.current.add(user.uid);
+    registerPushDevice(user.uid).catch(error => {
+      console.warn('Push token registration failed.', error);
+    });
+  }, [user?.uid, user?.notificationEnabled]);
   function handleLogout() {
+    if (user?.uid) pushRegistrationAttempted.current.delete(user.uid);
     AsyncStorage.removeItem('campusai_user').catch(() => { });
     AsyncStorage.removeItem('campusai_refresh_token').catch(() => { });
     clearAuthToken();
@@ -183,19 +353,50 @@ export default function App() {
   const userSubjectKeys = new Set(userSubjects.map(subject =>
     normalizeSubjectKey(resolveSubjectAlias(subject, subjectAliasMap))
   ));
+  const mutedClassKeys = new Set(user?.mutedClassKeys || []);
 
   const timetable = Object.fromEntries(
     Object.entries(mergedRawTimetable).map(([room, slots]) => [
       room,
-      (slots || []).map(slot => ({
-        ...slot,
-        subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
-        isMine: user?.type === 'staff' ? false : user?.type === 'teacher'
-          ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase()
-          : userSubjectKeys.has(normalizeSubjectKey(resolveSubjectAlias(slot.subject, subjectAliasMap))),
-      })),
+      (slots || []).map(slot => {
+        const normalizedSlot = {
+          ...slot,
+          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
+        };
+        const muteKey = getClassMuteKey(normalizedSlot, room, 'regular');
+        return {
+          ...normalizedSlot,
+          isMine: user?.type === 'staff' ? false : user?.type === 'teacher'
+            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase()
+            : userSubjectKeys.has(normalizeSubjectKey(resolveSubjectAlias(slot.subject, subjectAliasMap))),
+          muteKey,
+          isMuted: mutedClassKeys.has(muteKey),
+        };
+      }),
     ])
   );
+
+  const examWithOwnership = {
+    ...exam,
+    timetables: Object.fromEntries(Object.entries(exam?.timetables || {}).map(([room, slots]) => [
+      room,
+      (slots || []).map(slot => {
+        const normalizedSlot = {
+          ...slot,
+          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
+        };
+        const muteKey = getClassMuteKey(normalizedSlot, room, 'exam');
+        return {
+          ...normalizedSlot,
+          isMine: user?.type === 'staff' ? false : user?.type === 'teacher'
+            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase()
+            : userSubjectKeys.has(normalizeSubjectKey(normalizedSlot.subject)),
+          muteKey,
+          isMuted: mutedClassKeys.has(muteKey),
+        };
+      }),
+    ])),
+  };
 
   const subjectsMap = { cs: { [currentSem]: semSubjectNames } };
 
@@ -230,7 +431,8 @@ export default function App() {
             arrangedClasses={arrangedClasses} cancelledSlots={cancelledSlots}
             ttMeta={ttMetaWithRows} onTTUploaded={() => reloadTT()}
             onUpdateUser={handleUpdate}
-            schedule={schedule} examTimetable={exam}
+            schedule={schedule} examTimetable={examWithOwnership}
+            onToggleClassMute={handleToggleClassMute}
             officeTarget={officeTarget}
             onOfficeTargetHandled={() => setOfficeTarget(null)}
           />
@@ -261,10 +463,23 @@ export default function App() {
             subjectsList={semSubjectNames}
             availableSubjects={availableSubjectNames}
             onUpdate={handleUpdate}
+            onToggleNotifications={handleToggleNotifications}
             onRoleChange={handleRoleChange}
             onLogout={handleLogout}
           />
         );
+      case 'settings':
+        return staffAccess ? (
+          <SettingsScreen
+            user={user} dark={dark} onToggleDark={() => setDark(value => !value)}
+            onOpenProfile={() => setActiveTab('profile')}
+            onOpenAnnouncements={() => setEmergencyOpenRequest(value => value + 1)}
+            schedule={schedule}
+            ttMeta={ttMeta} timetableDocuments={timetableDocuments}
+            timetableManifest={timetableManifest} examTimetable={exam}
+            onTTUploaded={() => reloadTT()}
+          />
+        ) : null;
       case 'internal':
         return (
           <View style={{ flex: 1, backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' }}>
@@ -290,7 +505,7 @@ export default function App() {
             <Text style={styles.topBarTitle}>CampusAI</Text>
             {!isGuest && <ScheduleModePicker user={user} dark={dark} schedule={schedule} />}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-              {!isGuest && <EmergencyAnnouncements user={user} dark={dark} {...emergency} />}
+              {!isGuest && <EmergencyAnnouncements user={user} dark={dark} openRequest={emergencyOpenRequest} {...emergency} />}
               {isGuest && (
                 <TouchableOpacity
                   accessibilityLabel="Exit Guest Mode and sign in"

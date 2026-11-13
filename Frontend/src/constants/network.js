@@ -1,7 +1,7 @@
 import { NativeModules, Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-const DEFAULT_HOST = '127.0.0.1';
+const DEFAULT_HOST = '192.168.1.12';
 
 function cleanHost(value) {
   if (!value || typeof value !== 'string') return null;
@@ -57,8 +57,9 @@ function getHostFromWeb() {
 
 export function getDevHost() {
   return (
-    getHostFromExpo() ||
-    getHostFromMetro() ||
+    (typeof __DEV__ !== 'undefined' &&
+      __DEV__ &&
+      (getHostFromExpo() || getHostFromMetro())) ||
     getHostFromWeb() ||
     cleanHost(getEnv('EXPO_PUBLIC_API_HOST')) ||
     DEFAULT_HOST

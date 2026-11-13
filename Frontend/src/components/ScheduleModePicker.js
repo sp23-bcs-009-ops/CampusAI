@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SCHEDULE_MODES } from '../hooks/useScheduleMode';
+import { hasStaffRole } from '../constants/config';
 
 export default function ScheduleModePicker({ user, dark, schedule }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(null);
   const modeInfo = schedule?.modeInfo || SCHEDULE_MODES.regular;
-  const isStaff = user?.type === 'staff';
+  const isStaff = hasStaffRole(user);
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
   const ts = dark ? '#B9A7FF' : '#6C47D4';
   const bg = dark ? '#12123A' : '#FFFFFF';

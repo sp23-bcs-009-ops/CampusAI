@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { C } from '../../constants/colors';
-import { NOTIF_TYPES, DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
+import { hasStaffRole, NOTIF_TYPES, DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
 import { ErrBanner, PrimaryButton, SectionLabel, Chip } from '../ui';
 
 const DEPT_LIST = [
@@ -76,7 +76,8 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
 
   const usesLecture = type === 'arrange' || type === 'cancel' || type === 'quiz';
   const isStaffReservation = type === 'room_reservation';
-  const isStaff = user?.type === 'staff';
+  const isStaff = hasStaffRole(user);
+  const staffOnly = user?.type === 'staff';
   const ROOMS_LIST  = ['LT1','LT2','LT3','LT4','LT5','LT6','LT8','LT9'];
   const availableRooms = getAvailableRooms ? getAvailableRooms({ dept, semester, date, lectureNum }) : [];
 
@@ -179,7 +180,7 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
               <>
                 <Text style={[styles.heading, { color: tp }]}>Notification type</Text>
                 {Object.entries(NOTIF_TYPES)
-                  .filter(([key]) => !isStaff || key === 'room_reservation')
+                  .filter(([key]) => !staffOnly || key === 'room_reservation')
                   .map(([key, nt]) => {
                   const c = nt[dark ? 'd' : 'l'];
                   return (

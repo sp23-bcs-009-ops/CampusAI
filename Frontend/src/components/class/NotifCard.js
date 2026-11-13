@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { C } from '../../constants/colors';
-import { NOTIF_TYPES, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
+import { hasStaffRole, NOTIF_TYPES, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
 import { fmtDate, fmtDatetime } from '../../utils/helpers';
 
 export default function NotifCard({ notif, dark, user, onPin, onEdit, onDelete, lectureSlots }) {
@@ -27,8 +27,8 @@ export default function NotifCard({ notif, dark, user, onPin, onEdit, onDelete, 
       : null;
 
   // Permission: only teacher can edit/delete
-  const canEdit   = user?.type === 'teacher' || (user?.type === 'staff' && notif.type === 'room_reservation');
-  const canDelete = user?.type === 'teacher' || (user?.type === 'staff' && notif.type === 'room_reservation');
+  const canEdit   = user?.type === 'teacher' || (hasStaffRole(user) && notif.type === 'room_reservation');
+  const canDelete = user?.type === 'teacher' || (hasStaffRole(user) && notif.type === 'room_reservation');
 
   return (
     <View style={[styles.card, { backgroundColor: bg, borderColor: notif.pinned ? c.bd : bdr }]}>

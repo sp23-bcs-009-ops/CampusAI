@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { C } from '../../constants/colors';
-import { EVENT_CATS } from '../../constants/config';
+import { EVENT_CATS, hasStaffRole } from '../../constants/config';
 import { getEventStatus, fmtDatetime } from '../../utils/helpers';
 
 const STATUS_STYLE = {
@@ -23,7 +23,7 @@ export default function EventCard({ ev, dark, user, onEdit, onDelete }) {
   const bdr    = dark ? '#2A1C6B' : '#E2E0F5';
   const bg     = dark ? '#1A1A3E' : '#FFFFFF';
 
-  const canModify = user?.type === 'teacher' || user?.type === 'staff';
+  const canModify = user?.type === 'teacher' || hasStaffRole(user);
 
   return (
     <View style={[styles.card, { backgroundColor: bg, borderColor: bdr }]}>

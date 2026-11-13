@@ -15,7 +15,7 @@ import {
   isDeveloperModeEnabled,
 } from '../utils/developerClock';
 
-export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, dark, subjectsList = [], availableSubjects = [] }) {
+export default function ProfileScreen({ user, onUpdate, onToggleNotifications, onRoleChange, onLogout, dark, subjectsList = [], availableSubjects = [] }) {
   const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
   const normalizeSubjects = (arr) => (arr || []).map(toSubjectName).filter(Boolean);
   const subjectOptions = Array.from(new Set(normalizeSubjects(subjectsList)));
@@ -85,13 +85,16 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
   function setDeveloperModeEnabled(enabled) {
     onUpdate({ ...user, developerModeEnabled: enabled });
   }
+  function setStaffRoleEnabled(enabled) {
+    onUpdate({ ...user, staffRoleEnabled: enabled });
+  }
 
   useEffect(() => {
     setSem(user.semester || 1);
     setDept(user.dept || 'cs');
   }, [user.semester, user.dept]);
 
-  function saveTestStudentAcademicInfo() {
+  function saveDeveloperStudentAcademicInfo() {
     const semester = Math.min(Number(sem) || 1, DEPT_MAX_SEM[dept] || 8);
     const selectedDepartment = STUDENT_DEPARTMENTS.find(item => item.code === dept);
     onUpdate({
@@ -136,17 +139,70 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
           </View>
         </View>
 
+        <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1, paddingRight: 10 }}>
+              <Text style={[styles.cardTitle, { color: tp }]}>Notifications</Text>
+              <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
+                Control My Class and Class Notification alerts together.
+              </Text>
+            </View>
+            <TouchableOpacity
+              accessibilityRole="switch"
+              accessibilityLabel="All notifications"
+              accessibilityState={{ checked: user.notificationEnabled !== false }}
+              onPress={() => onToggleNotifications?.(user.notificationEnabled === false)}
+              style={{
+                minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                alignItems: 'center',
+                backgroundColor: user.notificationEnabled !== false ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
+              }}>
+              <Text style={{ color: user.notificationEnabled !== false ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
+                {user.notificationEnabled !== false ? 'ON' : 'OFF'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {saved && (
           <View style={[styles.savedBanner, { backgroundColor: '#DCFCE7', borderColor: '#16A34A' }]}>
             <Text style={{ fontSize: 12, color: '#166534', fontWeight: '600' }}>✓ Profile updated!</Text>
           </View>
         )}
 
-        {user.testMode && (
+        {user.type === 'teacher' && (
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
+            <View style={styles.cardHeader}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={[styles.cardTitle, { color: tp }]}>Staff Role</Text>
+                <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
+                  Add staff tools while keeping your teacher role.
+                </Text>
+              </View>
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{ checked: user.staffRoleEnabled === true }}
+                onPress={() => setStaffRoleEnabled(user.staffRoleEnabled !== true)}
+                style={{
+                  minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: user.staffRoleEnabled === true ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
+                }}>
+                <Text style={{ color: user.staffRoleEnabled === true ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
+                  {user.staffRoleEnabled === true ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}> 
-            <Text style={[styles.cardTitle, { color: '#9A3412', marginBottom: 4 }]}>Test Account</Text>
+            <Text style={[styles.cardTitle, { color: '#9A3412', marginBottom: 4 }]}>
+              {user.testMode ? 'Test Account' : 'Developer Testing'}
+            </Text>
             <Text style={{ color: '#9A3412', fontSize: 11, lineHeight: 16, marginBottom: 10 }}>
-              This development-only account has no real email. Switch roles to test each view.
+              Switch roles to test each view. Role and academic test settings are stored only on this device.
             </Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {['student', 'teacher', 'staff'].map(type => (
@@ -167,7 +223,7 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
                 <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
                   {alwaysOnTestAccount
                     ? 'Always active for this development test account.'
-                    : 'Enable local campus-time simulation for timetable and room-map testing.'}
+                    : 'Enable local role, student profile, and campus-time simulation for testing.'}
                 </Text>
               </View>
               {alwaysOnTestAccount ? (
@@ -280,7 +336,7 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
         {/* Academic info */}
         <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
           <Text style={[styles.cardTitle, { color: tp, marginBottom: 4 }]}>Academic Info</Text>
-          {user.testMode && user.type === 'student' ? (
+          {developerModeEnabled && user.type === 'student' ? (
             <>
               <Text style={{ color: ts, fontSize: 11, fontWeight: '700', marginTop: 8 }}>Department</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7 }}>
@@ -301,12 +357,12 @@ export default function ProfileScreen({ user, onUpdate, onRoleChange, onLogout, 
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity onPress={saveTestStudentAcademicInfo} style={[styles.editBtn, { alignSelf: 'flex-end', marginTop: 12 }]}>
+              <TouchableOpacity onPress={saveDeveloperStudentAcademicInfo} style={[styles.editBtn, { alignSelf: 'flex-end', marginTop: 12 }]}>
                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Save Department & Semester</Text>
               </TouchableOpacity>
             </>
           ) : <InfoRow label="Department" dark={dark} value={user.department} />}
-          {user.type === 'student' && !user.testMode && (
+          {user.type === 'student' && !developerModeEnabled && (
             <InfoRow label="Semester" dark={dark} value={`${SEM_LABELS[sem] || sem} Semester (${sem} of 8)`} />
           )}
           <InfoRow label="Student ID" dark={dark} value={user.email ? user.email.split('@')[0] : 'N/A'} />
