@@ -36,5 +36,5 @@ export default function useScheduleMode() {
     setUpdatedAt(nextUpdatedAt);
   }, []);
 
-  return { mode, modeInfo: SCHEDULE_MODES[mode], updatedAt, loading, changeMode };
+  return { mode, modeInfo: SCHEDULE_MODES[mode], updatedAt, loading, changeMode, reload: load };
 }

@@ -303,7 +303,3 @@ export async function getNotificationSettings(uid) {
 export async function saveNotificationSettings(uid, settings) {
   return fsSet(`notificationSettings/${uid}`, settings);
 }
-
-export async function saveNotificationDevice(uid, deviceId, device) {
-  return fsSet(`notificationDevices/${uid}/devices/${deviceId}`, device);
-}

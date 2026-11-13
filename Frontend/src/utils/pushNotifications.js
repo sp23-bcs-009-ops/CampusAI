@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 
 Notifications.setNotificationHandler({
@@ -11,29 +10,31 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerForPushNotificationsAsync() {
+let permissionRequest;
+
+export function ensureNotificationPermissionAsync() {
   if (Platform.OS === 'web') {
-    throw new Error('Push notifications are only supported on Android and iOS.');
+    return Promise.reject(new Error('Notifications are only supported on Android and iOS.'));
   }
-  if (!Device.isDevice) {
-    throw new Error('Push notifications require a physical device.');
-  }
+  if (permissionRequest) return permissionRequest;
 
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'CampusAI notifications',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      sound: 'default',
-    });
-  }
+  permissionRequest = (async () => {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'CampusAI notifications',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        sound: 'default',
+      });
+    }
 
-  let permission = await Notifications.getPermissionsAsync();
-  if (permission.status !== 'granted') {
-    permission = await Notifications.requestPermissionsAsync();
-  }
-  if (permission.status !== 'granted') return null;
-
-  const token = await Notifications.getDevicePushTokenAsync();
-  return { token: String(token.data), platform: Platform.OS };
+    let permission = await Notifications.getPermissionsAsync();
+    if (permission.status !== 'granted') {
+      permission = await Notifications.requestPermissionsAsync();
+    }
+    return permission.status === 'granted';
+  })().finally(() => {
+    permissionRequest = null;
+  });
+  return permissionRequest;
 }

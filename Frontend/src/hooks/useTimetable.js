@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fsGet, fsList } from '../firebase/firestore';
 import { parseTimetableDoc } from '../utils/helpers';
 
@@ -32,7 +32,7 @@ export default function useTimetable() {
     error: null,
   });
 
-  async function load() {
+  const load = useCallback(async () => {
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       const [allDocs, currentManifest, examManifest] = await Promise.all([
@@ -203,9 +203,9 @@ export default function useTimetable() {
     } catch (e) {
       setState(s => ({ ...s, loading: false, error: 'Could not load timetable.' }));
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   return { ...state, reload: load };
 }

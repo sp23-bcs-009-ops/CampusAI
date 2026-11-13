@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Alert, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { Alert, AppState, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from 'react-native-svg';
@@ -12,7 +12,6 @@ import {
   getAuthTokens,
   getNotificationSettings,
   refreshAuthToken,
-  saveNotificationDevice,
   saveNotificationSettings,
   authGetUser,
 } from './src/firebase/firestore';
@@ -34,7 +33,8 @@ import ScheduleModePicker from './src/components/ScheduleModePicker';
 import { buildClashingSubjectAliasMap, normalizeSubjectKey, resolveSubjectAlias } from './src/utils/clashingSubjectAliases';
 import { getDeveloperNow } from './src/utils/developerClock';
 import { getClassMuteKey } from './src/utils/classMutes';
-import { registerForPushNotificationsAsync } from './src/utils/pushNotifications';
+import { ensureNotificationPermissionAsync } from './src/utils/pushNotifications';
+import { syncMyClassLocalNotifications } from './src/utils/myClassNotifications';
 
 const NAV_ICON_COLORS = {
   chat: { light: '#0284C7', dark: '#38BDF8' },
@@ -114,7 +114,6 @@ export default function App() {
   const navViewportWidth = Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
   const navItemWidth = navViewportWidth / Math.min(3, Math.max(1, navItems.length));
   const [wallClockNow, setWallClockNow] = useState(new Date());
-  const pushRegistrationAttempted = useRef(new Set());
   const now = getDeveloperNow(wallClockNow, user);
   const emergency = useEmergencyAnnouncements();
   const schedule = useScheduleMode();
@@ -226,22 +225,6 @@ export default function App() {
     else muted.add(key);
     handleUpdate({ ...user, mutedClassKeys: [...muted] });
   }
-  async function registerPushDevice(uid) {
-    const pushDevice = await registerForPushNotificationsAsync();
-    if (!pushDevice) return false;
-    let deviceId = await AsyncStorage.getItem('campusai_notification_device_id');
-    if (!deviceId) {
-      deviceId = `device_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-      await AsyncStorage.setItem('campusai_notification_device_id', deviceId);
-    }
-    await saveNotificationDevice(uid, deviceId, {
-      token: pushDevice.token,
-      platform: pushDevice.platform,
-      updatedAt: new Date().toISOString(),
-    });
-    return true;
-  }
-
   async function handleToggleNotifications(enabled) {
     const uid = user?.uid;
     if (!uid) {
@@ -250,8 +233,8 @@ export default function App() {
     }
     try {
       if (enabled) {
-        const registered = await registerPushDevice(uid);
-        if (!registered) {
+        const permitted = await ensureNotificationPermissionAsync();
+        if (!permitted) {
           Alert.alert('Permission required', 'Allow notifications in your device settings to turn alerts on.');
           return;
         }
@@ -266,15 +249,10 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    if (!user?.uid || user.notificationEnabled === false || pushRegistrationAttempted.current.has(user.uid)) return;
-    pushRegistrationAttempted.current.add(user.uid);
-    registerPushDevice(user.uid).catch(error => {
-      console.warn('Push token registration failed.', error);
-    });
-  }, [user?.uid, user?.notificationEnabled]);
   function handleLogout() {
-    if (user?.uid) pushRegistrationAttempted.current.delete(user.uid);
+    syncMyClassLocalNotifications({ enabled: false }).catch(error => {
+      console.warn('Failed to cancel class reminders on logout.', error);
+    });
     AsyncStorage.removeItem('campusai_user').catch(() => { });
     AsyncStorage.removeItem('campusai_refresh_token').catch(() => { });
     clearAuthToken();
@@ -290,6 +268,7 @@ export default function App() {
     subjectsList,
     subjectsBySemester,
     lectureSlotsByDepartmentSemester,
+    loading: timetableLoading,
     rawDocuments: timetableDocuments,
     currentManifest: timetableManifest,
     exam,
@@ -397,6 +376,90 @@ export default function App() {
       }),
     ])),
   };
+
+  useEffect(() => {
+    let active = true;
+    const sync = async () => {
+      if (screen !== 'main') return;
+      if (!user || user.type === 'guest') {
+        await syncMyClassLocalNotifications({ enabled: false });
+        return;
+      }
+      if (user.notificationEnabled === false) {
+        await syncMyClassLocalNotifications({ enabled: false });
+        return;
+      }
+      if (timetableLoading || schedule.loading) return;
+
+      const activeTimetable = schedule.mode === 'exam'
+        ? examWithOwnership.timetables
+        : schedule.mode === 'regular' ? timetable : {};
+      const result = await syncMyClassLocalNotifications({
+        enabled: true,
+        uid: user.uid,
+        dept: user.dept,
+        semester: user.semester,
+        mode: schedule.mode,
+        timetable: activeTimetable,
+        mutedClassKeys: user.mutedClassKeys || [],
+        now: new Date(),
+      });
+      if (result.permissionDenied) {
+        console.warn('Class reminders were not scheduled because notification permission is denied.');
+      }
+    };
+
+    sync().catch(error => console.warn('Failed to sync class reminders.', error));
+    const subscription = AppState.addEventListener('change', state => {
+      if (!active || state !== 'active') return;
+      if (screen !== 'main' || !user || user.type === 'guest') return;
+
+      Promise.all([
+        reloadTT(),
+        schedule.reload(),
+        user.uid ? getNotificationSettings(user.uid) : Promise.resolve(null),
+      ]).then(([, , notificationSettings]) => {
+        if (typeof notificationSettings?.enabled !== 'boolean') return;
+        setUser(current => {
+          if (!current || current.uid !== user.uid) return current;
+          const updated = { ...current, notificationEnabled: notificationSettings.enabled };
+          AsyncStorage.setItem('campusai_user', JSON.stringify(updated)).catch(error => {
+            console.warn('Failed to save refreshed notification settings.', error);
+          });
+          return updated;
+        });
+      }).catch(error => console.warn('Failed to refresh class reminder data.', error));
+    });
+    const rollingWindowTimer = setInterval(() => {
+      sync().catch(error => console.warn('Failed to refresh the class reminder window.', error));
+    }, 24 * 60 * 60 * 1000);
+
+    return () => {
+      active = false;
+      clearInterval(rollingWindowTimer);
+      subscription.remove();
+    };
+  }, [
+    screen,
+    user?.uid,
+    user?.type,
+    user?.notificationEnabled,
+    user?.dept,
+    user?.semester,
+    user?.fullName,
+    user?.name,
+    JSON.stringify(user?.subjects || []),
+    JSON.stringify(user?.mutedClassKeys || []),
+    schedule.mode,
+    schedule.loading,
+    schedule.reload,
+    timetableLoading,
+    timetableManifest?.updatedAt,
+    exam?.manifest?.updatedAt,
+    ttMeta?.updatedAt,
+    exam?.meta?.updatedAt,
+    reloadTT,
+  ]);
 
   const subjectsMap = { cs: { [currentSem]: semSubjectNames } };
 

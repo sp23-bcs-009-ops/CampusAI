@@ -81,10 +81,6 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }
 
-    match /notificationDevices/{userId}/devices/{deviceId} {
-      allow read, write: if signedIn() && request.auth.uid == userId;
-    }
-
     // Everything else: deny
     match /{document=**} {
       allow read, write: if false;
