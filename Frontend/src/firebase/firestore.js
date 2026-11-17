@@ -9,10 +9,32 @@ const API_KEY   = FIREBASE_CONFIG.apiKey;
 // Tokens are set automatically on sign-in/up and refreshed via refreshToken.
 let ID_TOKEN = null;
 let REFRESH_TOKEN = null;
+let ID_TOKEN_EXPIRES_AT = 0; // ms since epoch
+
+// Firebase ID tokens last one hour. Read the expiry from the token itself;
+// if it can't be read, assume 55 minutes from now.
+function tokenExpiry(idToken) {
+  try {
+    const part = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = part + '='.repeat((4 - (part.length % 4)) % 4);
+    const { exp } = JSON.parse(atob(padded));
+    if (exp) return exp * 1000;
+  } catch {}
+  return Date.now() + 55 * 60 * 1000;
+}
 
 export function setAuthToken(idToken, refreshToken = null) {
   ID_TOKEN = idToken || null;
+  ID_TOKEN_EXPIRES_AT = idToken ? tokenExpiry(idToken) : 0;
   if (refreshToken) REFRESH_TOKEN = refreshToken;
+}
+
+/** The current ID token, renewed first if it expires within 5 minutes. */
+export async function getFreshIdToken() {
+  if (ID_TOKEN && REFRESH_TOKEN && Date.now() > ID_TOKEN_EXPIRES_AT - 5 * 60 * 1000) {
+    await refreshAuthToken(REFRESH_TOKEN);
+  }
+  return ID_TOKEN;
 }
 
 export function getAuthTokens() {
@@ -22,6 +44,7 @@ export function getAuthTokens() {
 export function clearAuthToken() {
   ID_TOKEN = null;
   REFRESH_TOKEN = null;
+  ID_TOKEN_EXPIRES_AT = 0;
 }
 
 /** Exchange a refresh token for a fresh ID token (called on app restart). */

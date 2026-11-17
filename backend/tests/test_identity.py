@@ -381,5 +381,7 @@ def test_student_notices_stay_short_and_guest_announcements_stay_detailed(monkey
     assert "Class moved" in both["answer"]
     assert "university part" not in both["answer"].lower()
     guest = answer_question("What announcements are published?", session_id="guest-announcements")
-    assert "Firestore" in guest["answer"]
-    assert "body:" in guest["answer"].lower()
+    # Guests get the full message, written for people rather than as raw record fields.
+    assert "Short circuit in Lab CS3 (critical)" in guest["answer"]
+    assert "Leave the lab." in guest["answer"]
+    assert "body:" not in guest["answer"].lower()

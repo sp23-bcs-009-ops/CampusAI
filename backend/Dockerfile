@@ -4,7 +4,9 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    CHROMA_DIR=/data/chroma_db
+    CHROMA_DIR=/data/chroma_db \
+    PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10
 
 # Install dependencies first (cached layer)
 COPY requirements.txt .
@@ -22,7 +24,7 @@ FROM dependencies AS backend
 COPY config.py llm.py rag_store.py pipeline.py timetable_service.py API.py \
      normalizer.py comsats_scraper.py pdf_to_json.py timetable_upload.py text_pdf_layout.py \
      rule_based_text_pdf.py exam_timetable_upload.py teacher_matching.py university_data.py knowledge_pack.py identity.py \
-     catalog.py user_memory.py ./
+     catalog.py user_memory.py presentation.py ./
 COPY timetable_flat.json comsats_knowledge.json timetable.pdf ./
 COPY knowledge_pack ./knowledge_pack
 

@@ -49,6 +49,8 @@ class Settings:
     # header  X-API-Key: <key>.  Leave unset to keep the API open (dev).
     api_key: str = _env("CAMPUS_AI_API_KEY")
     rate_limit: str = _env("RATE_LIMIT", "20/minute")
+    # /ask ceiling for everyone behind one network address (campus Wi-Fi, Docker).
+    rate_limit_shared: str = _env("RATE_LIMIT_SHARED", "200/minute")
 
     # Comma-separated allowed origins. "*" (default) = open, for dev.
     # For production set e.g.  CORS_ORIGINS=https://myapp.com,https://admin.myapp.com

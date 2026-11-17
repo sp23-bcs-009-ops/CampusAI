@@ -5,9 +5,10 @@ Extracted verbatim from the original 1400-line API.py so the FastAPI app
 and the LangChain pipeline can share it. No behavior changes.
 """
 import datetime
+import os
 import re
 
-from rapidfuzz import process
+from rapidfuzz import fuzz, process
 
 from normalizer import extract_class_from_sentence, normalize_to_key
 from comsats_scraper import is_comsats_question
@@ -145,7 +146,7 @@ def _slot_contains(slot: str, minute: int) -> bool:
     return start_m <= minute < end_m
 
 def _current_minutes() -> int:
-    now = datetime.datetime.now()
+    now = campus_now()
     return now.hour * 60 + now.minute
 
 def _make_time_filter(question: str):
@@ -182,9 +183,19 @@ def _make_time_filter(question: str):
 def _sort_by_slot(items):
     return sorted(items, key=lambda x: (_slot_start_minutes(x.get("time") or x.get("lecture") or x.get("slot") or ""), x.get("subject", "")))
 
+def campus_now() -> datetime.datetime:
+    """Current time on campus. Docker runs in UTC, which is 5 hours behind Pakistan."""
+    from zoneinfo import ZoneInfo
+
+    try:
+        return datetime.datetime.now(ZoneInfo(os.getenv("CAMPUS_TIMEZONE", "Asia/Karachi")))
+    except Exception:
+        return datetime.datetime.now()
+
+
 def today_name():
     """Returns today's day as a timetable key e.g. Monday, Tuesday"""
-    full = datetime.datetime.today().strftime("%A").lower()
+    full = campus_now().strftime("%A").lower()
     return DAY_MAP.get(full, "Monday")
 
 
@@ -523,12 +534,23 @@ def detect_day(question):
                 found_days.append(day_full)
                 seen.add(day_full)
                 
+    if not found_days:
+        # Misspelled day names ("mondy", "wendesday"). Short words are skipped so
+        # "today" or "friend" never turn into a day.
+        for w in words:
+            if len(w) < 5 or w in DAY_MAP:
+                continue
+            match = process.extractOne(w, list(_FULL_DAY_NAMES), scorer=fuzz.ratio, score_cutoff=80)
+            if match and match[0] not in seen:
+                found_days.append(_FULL_DAY_NAMES[match[0]])
+                seen.add(match[0])
+
     if found_days:
         return found_days
 
     if "today" in q_lower:
         return [today_name()]
-        
+
     if "tomorrow" in q_lower:
         days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         idx = days_order.index(today_name())
@@ -537,6 +559,9 @@ def detect_day(question):
         return [next_day]
 
     return None
+
+
+_FULL_DAY_NAMES = {name.lower(): name for name in WEEK_DAYS}
 
 
 def wants_full_week(question: str) -> bool:

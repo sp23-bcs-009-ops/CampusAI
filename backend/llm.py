@@ -27,8 +27,11 @@ def _require_groq_key() -> str:
     return settings.groq_api_key
 
 
+# gpt-oss is a reasoning model: max_tokens covers its hidden reasoning plus the
+# reply. With campus-record context, 300 was used up by reasoning alone and
+# replies came back cut off or empty.
 @lru_cache(maxsize=4)
-def get_chat_model(temperature: float = 0.2, max_tokens: int = 300):
+def get_chat_model(temperature: float = 0.2, max_tokens: int = 1024):
     from langchain_openai import ChatOpenAI
 
     if settings.llm_provider == "openai":

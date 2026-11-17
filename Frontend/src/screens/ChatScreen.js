@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { C } from '../constants/colors';
 import { getAiServerUrl } from '../constants/network';
-import { getAuthTokens } from '../firebase/firestore';
+import { getFreshIdToken } from '../firebase/firestore';
 import { loadChats, newSessionId, saveChat } from '../utils/chatHistory';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 
@@ -239,7 +239,8 @@ export default function ChatScreen({ user, dark }) {
 
     try {
       const headers = { 'Content-Type': 'application/json' };
-      const token = getAuthTokens().idToken;
+      // Renew the one-hour sign-in token first, so long sessions don't turn into guest mode.
+      const token = await getFreshIdToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch(`${getAiServerUrl()}/ask`, {
         method: 'POST',

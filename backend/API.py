@@ -28,6 +28,7 @@ from knowledge_pack import KnowledgePackUnavailable, pack_status
 from config import settings
 from llm import llm_info
 from pipeline import answer_question
+from presentation import present
 from timetable_upload import (
     InvalidFirebaseToken,
     TimetableConversionError,
@@ -47,6 +48,7 @@ from text_pdf_layout import (
 import json
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -345,6 +347,22 @@ async def upload_exam_timetable(
 # Main chat endpoint — the old 1200-line body now lives in pipeline.py
 # ─────────────────────────────────────────────────────────────────────────────
 
+def chat_rate_key(request: Request) -> str:
+    """One limit bucket per signed-in user. Guests share their network address.
+
+    Campus Wi-Fi (and Docker) put many people behind one address, so a
+    per-address limit alone would make the whole campus share 20 questions a
+    minute. The token is only hashed here, never verified or stored.
+    """
+    authorization = request.headers.get("authorization") or ""
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        if token:
+            import hashlib
+            return "user:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+    return get_remote_address(request) or "default"
+
+
 def chat_session_id(raw: str | None, request: Request) -> str:
     """Keep session keys small. A missing id stays anonymous and per client address."""
     text = "".join(ch for ch in str(raw or "") if ch.isprintable() and ch not in "\r\n\t")
@@ -355,7 +373,9 @@ def chat_session_id(raw: str | None, request: Request) -> str:
 
 
 @app.post("/ask", dependencies=[Depends(require_api_key)])
-@limiter.limit(settings.rate_limit)
+@limiter.limit(settings.rate_limit, key_func=chat_rate_key)
+# Ceiling per network address, so made-up tokens can't bypass the per-user limit.
+@limiter.limit(settings.rate_limit_shared)
 def ask(q: Query, request: Request, authorization: str | None = Header(default=None)):
     question = q.question.strip()
     if not question:
@@ -376,7 +396,21 @@ def ask(q: Query, request: Request, authorization: str | None = Header(default=N
     else:
         session_id = f"guest:{session_id}"
     result = answer_question(question, session_id=session_id, identity=identity)
-    return {"answer": result["answer"], "intent": result["intent"]}
+    answer = present(result["answer"], identity)
+    if token and identity is None and _PERSONAL_QUESTION.search(question.lower()):
+        # The signed-in screen sent a token that no longer verifies (Firebase ID
+        # tokens expire after an hour). Say so instead of silently answering as a guest.
+        answer = SIGN_IN_EXPIRED + "\n\n" + str(answer)
+    return {"answer": answer, "intent": result["intent"]}
+
+
+_PERSONAL_QUESTION = re.compile(
+    r"\b(my|mine|me|i|i'm|im|am i|who am i)\b"
+)
+SIGN_IN_EXPIRED = (
+    "⚠️ Your sign-in has expired, so I'm answering as a guest. "
+    "Sign out and sign in again to get answers about your own classes."
+)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
