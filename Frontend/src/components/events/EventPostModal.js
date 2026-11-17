@@ -3,7 +3,7 @@ import {
   View, Text, Modal, ScrollView, TouchableOpacity,
   TextInput, StyleSheet, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../DateTimePickerAdapter';
 import * as ImagePicker from 'expo-image-picker';
 import { C } from '../../constants/colors';
 import { EVENT_CATS } from '../../constants/config';

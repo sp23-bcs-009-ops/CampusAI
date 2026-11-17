@@ -4,7 +4,6 @@ import {
   buildMyClassReminders,
   karachiWallTimeToDate,
 } from './myClassSchedule.js';
-import { getClassMuteKey } from './classMutes.js';
 
 const now = new Date('2026-11-13T10:00:00.000Z');
 const regularSlot = {
@@ -17,7 +16,6 @@ const regularSlot = {
   dept: 'cs',
   sem: 3,
   isMine: true,
-  isMuted: false,
 };
 
 test('converts campus wall time to the same instant regardless of device timezone', () => {
@@ -64,8 +62,7 @@ test('exam reminders match exact ISO dates and use the Exam identity', () => {
   assert.ok(reminders.every(item => item.scheduledAtMs > now.getTime()));
 });
 
-test('excludes other users, departments, semesters, and muted classes', () => {
-  const mutedClassKeys = [getClassMuteKey(regularSlot, 'LT1', 'regular')];
+test('reminders include owned classes and exclude other users, departments, and semesters', () => {
   const reminders = buildMyClassReminders({
     uid: 'user-1',
     dept: 'cs',
@@ -77,11 +74,10 @@ test('excludes other users, departments, semesters, and muted classes', () => {
       LT3: [{ ...regularSlot, dept: 'se' }],
       LT4: [{ ...regularSlot, sem: 4 }],
     },
-    mutedClassKeys,
     now,
   });
 
-  assert.equal(reminders.length, 0);
+  assert.equal(reminders.length, 2);
 });
 
 test('does not schedule past reminders or duplicate identical timetable rows', () => {

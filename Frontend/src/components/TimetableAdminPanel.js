@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { C } from '../constants/colors';
 import { TIMETABLE_COLLECTION } from '../hooks/useTimetable';
+import { hasStaffRole } from '../constants/config';
 import { parseTimetableField, saveTimetableEntries } from '../utils/timetableAdmin';
 import TimetableEntryEditor from './TimetableEntryEditor';
+import LTPeriodSettingsPanel from './LTPeriodSettingsPanel';
 
-export default function TimetableAdminPanel({ dark, documents = [], manifest, user, mode = 'regular', onSaved }) {
+export default function TimetableAdminPanel({ dark, documents = [], manifest, user, mode = 'regular', onSaved, ltPeriodSettings, ltPeriodSettingsLoading, onSaveLTPeriodSettings, onResetLTPeriodSettings }) {
   const [selected, setSelected] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [editDept, setEditDept] = useState('');
@@ -16,6 +18,7 @@ export default function TimetableAdminPanel({ dark, documents = [], manifest, us
   const [selectedClass, setSelectedClass] = useState(null);
   const [showAllGroups, setShowAllGroups] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [showLTSettings, setShowLTSettings] = useState(false);
   const bg = dark ? '#12123A' : '#FFFFFF';
   const fieldBg = dark ? '#0A0A1E' : '#F8F7FF';
   const text = dark ? '#EDE9FF' : '#1A0F4A';
@@ -110,6 +113,10 @@ export default function TimetableAdminPanel({ dark, documents = [], manifest, us
             style={[styles.editButton, { backgroundColor: editMode ? fieldBg : C.purple, borderColor: editMode ? border : C.purple }]}>
             <Text style={{ color: editMode ? muted : '#FFFFFF', fontSize: 11, fontWeight: '800' }}>{editMode ? 'Close' : '✎  Edit timetable'}</Text>
           </TouchableOpacity>
+          {hasStaffRole(user) && <TouchableOpacity onPress={() => setShowLTSettings(true)} activeOpacity={0.8}
+            style={[styles.editButton, { backgroundColor: fieldBg, borderColor: border }]}>
+            <Text style={{ color: muted, fontSize: 11, fontWeight: '800' }}>Edit LT Time Period</Text>
+          </TouchableOpacity>}
         </View>
         {editMode && <View style={[styles.detailBox, { backgroundColor: fieldBg, borderColor: border }]}>
           <Text style={{ color: muted, fontSize: 10, marginBottom: 5 }}>Choose the class filters. Matching classes appear only after Room is selected.</Text>
@@ -134,6 +141,16 @@ export default function TimetableAdminPanel({ dark, documents = [], manifest, us
           </ScrollView>
         )}
       </View>}
+      <Modal visible={showLTSettings} transparent animationType="slide" onRequestClose={() => setShowLTSettings(false)}>
+        <TouchableOpacity style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(26,15,74,0.5)' }]} activeOpacity={1} onPress={() => setShowLTSettings(false)} />
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, maxHeight: '88%', backgroundColor: bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16 }}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={{ color: text, fontSize: 16, fontWeight: '800', marginBottom: 10 }}>Edit LT Time Period</Text>
+            <LTPeriodSettingsPanel dark={dark} settings={ltPeriodSettings} loading={ltPeriodSettingsLoading} onSave={async value => { await onSaveLTPeriodSettings?.(value); setShowLTSettings(false); }} onReset={async () => { await onResetLTPeriodSettings?.(); setShowLTSettings(false); }} />
+            <TouchableOpacity onPress={() => setShowLTSettings(false)} style={{ alignSelf: 'flex-end', padding: 10 }}><Text style={{ color: muted, fontWeight: '700' }}>Close</Text></TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
 
       <TimetableEntryEditor
         visible={!!selected}

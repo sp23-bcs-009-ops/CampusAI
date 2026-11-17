@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import Svg, { Path, Rect, Circle, Text as SvgText, Line, G } from 'react-native-svg';
 import { DEPT_FLOORS, DEPT_FLOOR_LABELS, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
 import { SS } from '../../constants/colors';
@@ -43,15 +43,13 @@ function RoomBlock({ room, dark, timetable, now, arrangedClasses, cancelledSlots
 
   const x = room.cx - room.w / 2;
   const y = room.cy - room.h / 2;
-  const isOffice = room.type === 'office' && !/(lab|conference|common room)/i.test(`${room.id} ${room.label || ''}`);
   const focused = room.id === focusedRoomId;
-  const clickable = isLT || isLab || isOffice;
   const hasBar = isMine || isArr;
 
   return (
     <G
-      onPress={clickable ? () => onPress({ roomId: room.id, room }) : undefined}
-      accessibilityRole={clickable ? 'button' : undefined}
+      onPress={() => onPress?.({ roomId: room.id, room })}
+      accessibilityLabel={room.label || room.id}
     >
       {isMine && (
         <Rect x={x-3} y={y-3} width={room.w+6} height={room.h+6} rx={9}
@@ -119,8 +117,12 @@ function CourtyardMap({ floorData, floor, dark, timetable, now, arrangedClasses,
   const { building, courtyard, rooms, entrance, label } = floorData;
   const lc = dark ? '#9B7EF8' : '#3D2B8E';
   const { width: screenWidth } = useWindowDimensions();
-  const svgWidth = 646;
-  const svgHeight = 255;
+  const mapWidth = Platform.OS === 'web' && screenWidth >= 1024
+    ? Math.min(Math.max(screenWidth - 360, 760), 1100)
+    : 760;
+  const scale = mapWidth / 760;
+  const svgWidth = 646 * scale;
+  const svgHeight = 255 * scale;
   const scrollRef = useRef(null);
 
   React.useEffect(() => {
@@ -172,10 +174,14 @@ function CourtyardMap({ floorData, floor, dark, timetable, now, arrangedClasses,
   );
 }
 
-export default function ArcMap({ floor, dark, timetable, now, arrangedClasses, cancelledSlots, lectureSlots, mode, onRoomPress, reportedIssues, department = 'cs', focusedRoomId = null }) {
+const ArcMap = React.memo(function ArcMap({ floor, dark, timetable, now, arrangedClasses, cancelledSlots, lectureSlots, mode, onRoomPress, reportedIssues, department = 'cs', focusedRoomId = null }) {
   const deptFloors = DEPT_FLOORS[department] || DEPT_FLOORS.cs;
   const fd = deptFloors[floor];
   const { width: mapScreenWidth } = useWindowDimensions();
+  const svgWidth = Platform.OS === 'web' && mapScreenWidth >= 1024
+    ? Math.min(Math.max(mapScreenWidth - 360, 760), 1100)
+    : 760;
+  const svgHeight = 220 * (svgWidth / 760);
   const scrollRef = useRef(null);
   React.useEffect(() => {
     if (!fd || fd.layout === 'courtyard') return;
@@ -183,11 +189,13 @@ export default function ArcMap({ floor, dark, timetable, now, arrangedClasses, c
     const target = rooms.find(room => room.id === focusedRoomId);
     const viewportWidth = Math.max(mapScreenWidth - 30, 0);
     const timer = setTimeout(() => {
-      const x = target ? target.cx - viewportWidth / 2 : 380 - 180;
-      scrollRef.current?.scrollTo({ x: Math.max(0, Math.min(760 - viewportWidth, x)), animated: !!target });
+      const x = target
+        ? target.cx * (svgWidth / 760) - viewportWidth / 2
+        : (svgWidth - viewportWidth) / 2;
+      scrollRef.current?.scrollTo({ x: Math.max(0, Math.min(svgWidth - viewportWidth, x)), animated: !!target });
     }, 50);
     return () => clearTimeout(timer);
-  }, [fd, floor, focusedRoomId, mapScreenWidth]);
+  }, [fd, floor, focusedRoomId, mapScreenWidth, svgWidth]);
   if (!fd) return null;
 
   if (fd.layout === 'courtyard') {
@@ -228,7 +236,8 @@ export default function ArcMap({ floor, dark, timetable, now, arrangedClasses, c
   const fwL = leftWing[0], fwR = rightWing[0];
 
   const VB_X = 0, VB_Y = 220, VB_W = 760, VB_H = 220;
-  const SVG_W = 760;
+  const SVG_W = svgWidth;
+  const SVG_H = svgHeight;
 
   return (
     <ScrollView
@@ -237,7 +246,7 @@ export default function ArcMap({ floor, dark, timetable, now, arrangedClasses, c
       showsHorizontalScrollIndicator={false}
       style={{ flexGrow: 0 }}
     >
-      <Svg width={SVG_W} height={VB_H} viewBox={`${VB_X} ${VB_Y} ${VB_W} ${VB_H}`}>
+      <Svg width={SVG_W} height={SVG_H} viewBox={`${VB_X} ${VB_Y} ${VB_W} ${VB_H}`}>
         <Path d={band}
           fill={dark ? '#1A1A3E' : '#EEF0FF'}
           stroke={dark ? '#3D2B8E' : '#B8B0E8'}
@@ -301,4 +310,6 @@ export default function ArcMap({ floor, dark, timetable, now, arrangedClasses, c
       </Svg>
     </ScrollView>
   );
-}
+});
+
+export default ArcMap;

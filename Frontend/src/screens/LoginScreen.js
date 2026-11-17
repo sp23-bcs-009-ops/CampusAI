@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePickerAdapter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { ALLOWED_DOMAIN, USER_TYPES } from '../constants/config';

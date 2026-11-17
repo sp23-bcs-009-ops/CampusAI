@@ -91,7 +91,7 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
 
 
 def require_timetable_uploader(authorization: str | None = Header(default=None)):
-    """Require a verified Firebase account with a saved Teacher/Staff role."""
+    """Require a verified Firebase account with a saved Staff role."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Firebase bearer token is required.")
     id_token = authorization.split(" ", 1)[1].strip()
@@ -111,12 +111,7 @@ def require_timetable_uploader(authorization: str | None = Header(default=None))
 
 
 def _exam_upload_role_allowed(uploader: dict) -> bool:
-    if uploader.get("role") == "staff":
-        return True
-    return (
-        uploader.get("role") == "dev"
-        and os.getenv("TIMETABLE_UPLOAD_DEV_MODE", "false").strip().lower() == "true"
-    )
+    return uploader.get("role") == "staff"
 
 
 def _warm_university_cache() -> None:

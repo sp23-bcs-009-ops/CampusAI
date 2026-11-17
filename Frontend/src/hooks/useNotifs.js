@@ -4,6 +4,7 @@ import { sortNotifs, dateToDayName } from '../utils/helpers';
 import { DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../constants/config';
 
 const POLL_INTERVAL = 15000;
+const RESERVATION_POLL_INTERVAL = 15000;
 
 export default function useNotifs(lectureSlots) {
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
@@ -16,6 +17,8 @@ export default function useNotifs(lectureSlots) {
   const semRef  = useRef(null);
   const modeRef  = useRef('class');
   const teacherRef = useRef(null);
+  const teacherAssignmentsRef = useRef([]);
+  const scopeRequestRef = useRef(0);
   const reservationDeptRef = useRef(null);
 
   function notifPath(dept, semester) {
@@ -39,14 +42,9 @@ export default function useNotifs(lectureSlots) {
     };
   }
 
-  function applyDocs(docs, updateRoomReservations = false) {
+  function applyDocs(docs) {
     const normalizedDocs = (docs || []).map(normalizeNotif);
     setNotifs(sortNotifs(normalizedDocs, slots));
-    if (updateRoomReservations) {
-      setRoomReservations(normalizedDocs.filter(n =>
-        (n.type === 'arrange' || n.type === 'room_reservation') && n.room && n.date && n.lectureNum
-      ));
-    }
     setArrangedClasses(
       normalizedDocs.filter(n => (n.type === 'arrange' || n.type === 'room_reservation') && n.room && n.lectureNum)
         .map(n => ({
@@ -62,23 +60,52 @@ export default function useNotifs(lectureSlots) {
   }
 
   const loadNotifs = useCallback(async (dept, semester) => {
+    const requestId = ++scopeRequestRef.current;
     deptRef.current = dept;
     semRef.current  = semester;
     modeRef.current = 'class';
     teacherRef.current = null;
     const docs = await fsList(notifPath(dept, semester));
+    if (requestId !== scopeRequestRef.current) return;
     applyDocs(docs);
   }, [slots]);
 
-  const loadAllReservations = useCallback(async (dept) => {
-    reservationDeptRef.current = dept;
-    const semesters = DEPT_MAX_SEM[dept] || 8;
-    const docsBySemester = await Promise.all(
-      Array.from({ length: semesters }, (_, index) => fsList(notifPath(dept, index + 1)))
-    );
-    setRoomReservations(docsBySemester.flat().map(normalizeNotif).filter(notif =>
-      (notif.type === 'arrange' || notif.type === 'room_reservation') && notif.room && notif.date && notif.lectureNum
+  const loadAllReservations = useCallback(async () => {
+    reservationDeptRef.current = 'all';
+    const docsByDepartment = await Promise.all(Object.entries(DEPT_MAX_SEM).flatMap(([dept, semesters]) =>
+      Array.from({ length: semesters }, (_, index) => ({
+        dept,
+        semester: index + 1,
+        load: fsList(notifPath(dept, index + 1)),
+      }))
     ));
+    const documents = await Promise.all(docsByDepartment.map(async ({ dept, semester, load }) =>
+      (await load).map(notif => normalizeNotif({ ...notif, dept: notif.dept || dept, semester: notif.semester || semester }))
+    ));
+    const allNotifs = documents.flat();
+    const reservations = allNotifs.filter(notif =>
+      (notif.type === 'arrange' || notif.type === 'room_reservation') && notif.room && notif.date && notif.lectureNum
+    );
+    setRoomReservations(reservations);
+    setArrangedClasses(reservations.map(notif => ({
+      id: notif.id || notif._docId,
+      type: notif.type,
+      day: dateToDayName(notif.date),
+      lectureNum: Number(notif.lectureNum),
+      room: notif.room,
+      subject: notif.subject,
+      postedBy: notif.postedBy,
+      date: notif.date,
+      dept: notif.dept,
+      semester: Number(notif.semester),
+    })));
+    setCancelledSlots(allNotifs.filter(notif => notif.type === 'cancel' && notif.date && notif.lectureNum)
+      .map(notif => ({
+        id: notif.id || notif._docId,
+        date: notif.date,
+        lectureNum: Number(notif.lectureNum),
+        subject: notif.subject,
+      })));
   }, []);
 
   const loadTeacherOptions = useCallback(async (dept) => {
@@ -95,6 +122,7 @@ export default function useNotifs(lectureSlots) {
 
   const loadTeacherNotifs = useCallback(async (dept, teacher) => {
     if (!teacher) return;
+    const requestId = ++scopeRequestRef.current;
     deptRef.current = dept;
     semRef.current = null;
     modeRef.current = 'teacher';
@@ -103,24 +131,73 @@ export default function useNotifs(lectureSlots) {
     const docsBySemester = await Promise.all(
       Array.from({ length: semesters }, (_, index) => fsList(notifPath(dept, index + 1)))
     );
+    if (requestId !== scopeRequestRef.current) return;
     applyDocs(docsBySemester.flat().filter(notif => String(notif?.postedBy || '') === teacher));
+  }, [slots]);
+
+  const loadTeacherAssignments = useCallback(async (assignments) => {
+    const requestId = ++scopeRequestRef.current;
+    const uniqueAssignments = Array.from(new Map(
+      (assignments || []).map(item => [`${item.dept}:${item.semester}`, item])
+    ).values());
+    deptRef.current = null;
+    semRef.current = null;
+    modeRef.current = 'assignments';
+    teacherRef.current = null;
+    teacherAssignmentsRef.current = uniqueAssignments;
+    reservationDeptRef.current = 'all';
+
+    if (!uniqueAssignments.length) {
+      if (requestId !== scopeRequestRef.current) return;
+      applyDocs([]);
+      return;
+    }
+
+    const docsByAssignment = await Promise.all(uniqueAssignments.map(async assignment => {
+      const docs = await fsList(notifPath(assignment.dept, assignment.semester));
+      const subjects = new Set((assignment.subjects || []).map(subject => String(subject).trim().toLocaleLowerCase()));
+      return docs
+        .filter(doc => {
+          const subject = toSubjectName(doc?.subject).trim().toLocaleLowerCase();
+          return !subject || subject === 'general' || subjects.has(subject);
+        })
+        .map(doc => ({
+          ...doc,
+          dept: assignment.dept,
+          semester: assignment.semester,
+        }));
+    }));
+    if (requestId !== scopeRequestRef.current) return;
+    applyDocs(docsByAssignment.flat());
   }, [slots]);
 
   // Polling every 15 seconds
   useEffect(() => {
     const timer = setInterval(async () => {
-      if (reservationDeptRef.current) await loadAllReservations(reservationDeptRef.current);
+      if (modeRef.current === 'assignments') {
+        await loadTeacherAssignments(teacherAssignmentsRef.current);
+        return;
+      }
       if (!deptRef.current) return;
       if (modeRef.current === 'teacher') {
         if (teacherRef.current) await loadTeacherNotifs(deptRef.current, teacherRef.current);
         return;
       }
       if (!semRef.current) return;
+      const requestId = ++scopeRequestRef.current;
       const docs = await fsList(notifPath(deptRef.current, semRef.current));
+      if (requestId !== scopeRequestRef.current) return;
       applyDocs(docs);
     }, POLL_INTERVAL);
     return () => clearInterval(timer);
-  }, [loadAllReservations, loadTeacherNotifs, slots]);
+  }, [loadAllReservations, loadTeacherNotifs, loadTeacherAssignments, slots]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (reservationDeptRef.current) loadAllReservations();
+    }, RESERVATION_POLL_INTERVAL);
+    return () => clearInterval(timer);
+  }, [loadAllReservations]);
 
   const postNotif = useCallback(async (notif, dept, semester) => {
     const cleanNotif = normalizeNotif(notif);
@@ -187,7 +264,7 @@ export default function useNotifs(lectureSlots) {
   return {
     notifs, arrangedClasses, cancelledSlots, roomReservations,
     loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
-    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadAllReservations,
+    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments, loadAllReservations,
     setNotifs, setArrangedClasses, setCancelledSlots,
   };
 }

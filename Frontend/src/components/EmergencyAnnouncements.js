@@ -10,7 +10,7 @@ function formatDate(value) {
   return new Date(Number(value)).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement, openRequest = 0 }) {
+export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement }) {
   const [open, setOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -20,7 +20,6 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
   const slide = useRef(new Animated.Value(-180)).current;
   const dragX = useRef(new Animated.Value(0)).current;
   const dismissTimer = useRef(null);
-  const lastOpenRequest = useRef(openRequest);
 
   function dismissActive(markAsRead = true) {
     if (!active) return;
@@ -91,13 +90,6 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
     setOpen(true);
     markAllRead();
   }
-
-  useEffect(() => {
-    if (openRequest && openRequest !== lastOpenRequest.current) {
-      lastOpenRequest.current = openRequest;
-      openHistory();
-    }
-  }, [openRequest]);
 
   return (
     <>

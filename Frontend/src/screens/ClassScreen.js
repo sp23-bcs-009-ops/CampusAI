@@ -6,10 +6,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { DEPT_MAX_SEM, NOTIF_TYPES, can, hasStaffRole } from '../constants/config';
-import { dateToDayName } from '../utils/helpers';
 import NotifCard from '../components/class/NotifCard';
 import PostModal from '../components/class/PostModal';
 import useNotifs from '../hooks/useNotifs';
+import { getAvailableRoomsForSlot } from '../utils/availableRooms';
 
 const FILTERS = [
   { key: 'all',        label: 'All' },
@@ -21,10 +21,14 @@ const FILTERS = [
   { key: 'other',      label: 'Other' },
 ];
 
-export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, timetables, isGuest, schedule }) {
+export default function ClassScreen({
+  user, dark, lectureSlots, subjectsMap, timetables, isGuest, schedule,
+  teacherAssignments = [],
+}) {
   const {
     notifs, loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
-    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadAllReservations, roomReservations, setNotifs,
+    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments,
+    loadAllReservations, roomReservations, setNotifs,
     arrangedClasses, cancelledSlots,
   } = useNotifs(lectureSlots);
 
@@ -42,6 +46,7 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
   const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
   const isStaff = hasStaffRole(user);
+  const isTeacher = user?.type === 'teacher';
   // During Exam mode the reflected timetable is the exam schedule, so adding
   // notifications (including Cancel Class) is locked until Regular returns.
   const examModeActive = (schedule?.mode || 'regular') === 'exam';
@@ -54,6 +59,10 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
   }
 
   function startNewPost() {
+    if (isTeacher && teacherAssignments.length === 0) {
+      Alert.alert('No teaching assignments', 'The active timetable has no classes assigned to this teacher.');
+      return;
+    }
     if (examModeActive) {
       notifyExamLocked();
       return;
@@ -64,9 +73,16 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
 
   useEffect(() => {
     if (isGuest) return;
-    loadAllReservations(dept);
+    loadAllReservations();
+    if (isTeacher) {
+      loadTeacherAssignments(teacherAssignments);
+      return;
+    }
     if (!isStaff) loadNotifs(dept, semester);
-  }, [dept, semester, isGuest, isStaff]);
+  }, [
+    dept, semester, isGuest, isStaff, isTeacher, teacherAssignments,
+    loadTeacherAssignments, loadAllReservations, loadNotifs,
+  ]);
 
   useEffect(() => {
     if (!isStaff) return;
@@ -75,7 +91,6 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
     setStaffTeacher(null);
     setNotifs([]);
     loadTeacherOptions(dept);
-    loadAllReservations(dept);
   }, [dept, isStaff]);
 
   const filtered = isGuest ? [] : notifs
@@ -107,40 +122,23 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
     await deleteNotif(id, type, item?.dept || dept, item?.semester || staffSemester || semester);
   }
 
-  const canPost = !isGuest && (can.postClassNotif(user) || can.postRoomReservation(user));
+  const canPost = !isGuest && (
+    (can.postClassNotif(user) && (!isTeacher || teacherAssignments.length > 0))
+    || can.postRoomReservation(user)
+  );
 
-  function getAvailableRooms({ dept: targetDept, semester: targetSemester, date, lectureNum }) {
-    if (!targetDept || !targetSemester || !date || !lectureNum) return [];
-    const selectedSlot = lectureSlots?.[lectureNum];
-    if (!selectedSlot) return [];
-    const selectedDay = dateToDayName(date);
-    const roomMap = timetables?.[Number(targetSemester)] || {};
-    const roomNames = new Set(['LT1', 'LT2', 'LT3', 'LT4', 'LT5', 'LT6', 'LT8', 'LT9']);
-    Object.keys(roomMap).forEach(room => roomNames.add(room));
-
-    const normaliseDay = value => String(value || '').slice(0, 3).toLowerCase();
-    const toMinutes = value => {
-      const [hours, minutes] = String(value || '').split(':').map(Number);
-      return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
-    };
-    const overlapsTimetable = slots => (slots || []).some(slot => {
-      if (normaliseDay(slot.day) !== normaliseDay(selectedDay)) return false;
-      const time = String(slot.time || '');
-      const start = toMinutes(slot.start || time.split('-')[0]);
-      const end = toMinutes(slot.end || time.split('-')[1]);
-      const selectedStart = toMinutes(selectedSlot.start);
-      const selectedEnd = toMinutes(selectedSlot.end);
-      return start !== null && end !== null && start < selectedEnd && end > selectedStart;
+  function getAvailableRooms({ dept: targetDept, semester: targetSemester, date, lectureNum, type }) {
+    return getAvailableRoomsForSlot({
+      timetables,
+      dept: targetDept,
+      semester: targetSemester,
+      date,
+      lectureNum,
+      lectureSlots,
+      teacherName: user?.fullName || user?.name,
+      checkTeachingConflicts: type === 'arrange',
+      roomReservations: roomReservations.filter(notif => notif.id !== editItem?.id),
     });
-
-    return Array.from(roomNames)
-      .filter(room => !overlapsTimetable(roomMap[room]))
-      .filter(room => !roomReservations.some(notif =>
-        (notif.type === 'arrange' || notif.type === 'room_reservation') &&
-        notif.id !== editItem?.id && notif.room === room && notif.date === date && Number(notif.lectureNum) === Number(lectureNum)
-      ))
-      .sort((a, b) => a.localeCompare(b))
-      .map(room => ({ room }));
   }
 
   function selectStaffView(view) {
@@ -170,7 +168,9 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.headerSub}>
-              BS {dept.toUpperCase()} · {isStaff && !staffSemester && !staffTeacher ? 'Choose view' : `Sem ${staffSemester || semester}`}
+              {isTeacher
+                ? `${teacherAssignments.length} teaching group${teacherAssignments.length === 1 ? '' : 's'}`
+                : `BS ${dept.toUpperCase()} · ${isStaff && !staffSemester && !staffTeacher ? 'Choose view' : `Sem ${staffSemester || semester}`}`}
             </Text>
             <Text style={styles.headerTitle}>Class Board</Text>
           </View>
@@ -308,7 +308,11 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
           <View style={styles.empty}>
             <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
             <Text style={{ fontSize: 13, color: ts }}>
-              {isStaff && !staffSemester && !staffTeacher ? 'Choose a class, semester, or teacher' : 'No notifications here'}
+              {isStaff && !staffSemester && !staffTeacher
+                ? 'Choose a class, semester, or teacher'
+                : isTeacher && teacherAssignments.length === 0
+                  ? 'No teaching assignments found in the active timetable'
+                  : 'No notifications here'}
             </Text>
           </View>
         }
@@ -331,6 +335,7 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
         lectureSlots={lectureSlots}
         subjectsMap={subjectsMap}
         user={user}
+        teacherAssignments={teacherAssignments}
         getAvailableRooms={getAvailableRooms}
         onClose={() => { setShowPost(false); setEditItem(null); }}
         onSubmit={handleSubmit}

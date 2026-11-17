@@ -1,4 +1,4 @@
-import { DEPT_MAP, FALLBACK_LECTURE_SLOTS, DAYS } from '../constants/config';
+import { DEPT_MAP, FALLBACK_LECTURE_SLOTS, DAYS } from '../constants/config.js';
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────
 export function getCurrentIntake() {
@@ -43,6 +43,14 @@ export function toMin(t) {
 export function dateToDayName(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+export function roomDepartment(roomId) {
+  const room = String(roomId || '').trim();
+  if (!room) return 'cs';
+  if (/^(Electric|Computer Lab|DLD\/MP|Communication|Electronics\/ECA|Physics|Control System|Embedded System|Industrial Electronics|Research|Final Year Project|Seminar Hall|EE\s+Com\s+Lab|EE\s+DLD\s+Lab|ECA\s+Lab|EM\s+Lab|IE\s+Lab)/i.test(room)) return 'ee';
+  if (/^(Lecture Hall|Class Room|LH\s*\d|CR\s*\d)/i.test(room)) return 'math';
+  return 'cs';
 }
 
 export function fmtDate(dateStr) {
@@ -130,7 +138,7 @@ export function getFullRoomStatus(id, now, timetable, arrangedClasses, cancelled
       return !cancelled;
     });
     if (!active) return { status: 'free', slot: null };
-    return { status: active.isMine && !active.isMuted ? 'mine' : 'occupied', slot: active };
+    return { status: active.isMine ? 'mine' : 'occupied', slot: active };
   })();
 
   if (base.status !== 'free') return base;
@@ -147,9 +155,13 @@ export function getFullRoomStatus(id, now, timetable, arrangedClasses, cancelled
 
   if (arr) {
     const sl = slots[arr.lectureNum];
+    const mine = arr.isMine === true;
     return {
-      status: 'arranged',
-      slot: { subject: arr.subject, prof: arr.postedBy, start: sl.start, end: sl.end, isArranged: true },
+      status: mine ? 'mine' : 'arranged',
+      slot: {
+        subject: arr.subject, prof: arr.postedBy, start: sl.start, end: sl.end,
+        dept: arr.dept, semester: arr.semester, isArranged: true, isMine: mine,
+      },
       arranged: arr,
     };
   }

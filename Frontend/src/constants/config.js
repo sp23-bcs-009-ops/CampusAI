@@ -69,7 +69,7 @@ export const can = {
   resolveLF:(u) => hasStaffRole(u),
 
   // Timetable upload (Admin panel)
-  uploadTimetable: (u) => u?.type === ROLES.staff || u?.type === ROLES.teacher,
+  uploadTimetable: (u) => u?.type === ROLES.staff,
 };
 
 // ─── Navigation tabs ──────────────────────────────────────────────────────
@@ -79,7 +79,6 @@ export const NAV_TABS = [
   { key: 'home',      label: 'Home page',           icon: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z' },
   { key: 'uninews',   label: 'Uni notification',    icon: 'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z' },
   { key: 'directory', label: 'Teacher list',        icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.98 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z' },
-  { key: 'settings',  label: 'Settings',            icon: 'M19.14 12.94a7.49 7.49 0 0 0 .05-1.88l2.03-1.58-2-3.46-2.43.98a7.2 7.2 0 0 0-1.63-.94L14.8 3h-4l-.37 3.06a7.2 7.2 0 0 0-1.63.94l-2.43-.98-2 3.46 2.03 1.58a7.49 7.49 0 0 0 .05 1.88l-2.03 1.58 2 3.46 2.43-.98c.5.39 1.05.7 1.63.94L10.8 21h4l.37-3.06c.58-.24 1.13-.55 1.63-.94l2.43.98 2-3.46-2.09-1.58zM12.8 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z' },
   { key: 'profile',   label: 'My Profile',          icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z' },
 ];
 
