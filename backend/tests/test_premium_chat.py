@@ -248,7 +248,7 @@ def test_student_questions_without_my_use_their_class(monday_at):
 def test_student_subject_questions_and_teachers(monday_at):
     monday_at(7 * 60)
     assert ask("when is my test subject class", STUDENT, session="m1")["answer"] == \
-        "📚 Test Subject (BS(CS)-I)\n• Monday 8:30–10:00 in CR 1 (Dr. Test)"
+        "📚 Test Subject — BS(CS)-I\n• Monday 8:30–10:00 — CR 1, Dr. Test"
     teachers = ask("my teachers", STUDENT, session="m2")["answer"]
     assert teachers["type"] == "class_teachers" and teachers["class"] == "BS(CS)-I"
     assert ask("who teaches intro in BCS-2", STUDENT, session="m3")["answer"] == \
@@ -275,6 +275,27 @@ def test_teacher_and_room_free_now_are_yes_or_no(monday_at):
         "No, CR 1 is in use right now: Test Subject for BS(CS)-I (8:30–10:00)."
     monday_at(12 * 60)
     assert ask("is CR 1 free now", None, session="n3")["answer"].startswith("Yes, CR 1 is free right now.")
+
+
+def test_audit_fixes_rooms_free_slots_and_tidy_lists(monday_at):
+    """From the 74-question student audit against Firebase, 17 Nov 2026."""
+    from pipeline import _combine_lab_names, _merge_slots
+
+    monday_at(9 * 60)
+    assert ask("free rooms now", STUDENT, session="a1")["intent"] == "rooms_all"
+    assert _merge_slots(["15:00-16:30", "13:35-15:00", "08:30-10:00"]) == ["08:30–10:00", "13:35–16:30"]
+    assert _combine_lab_names(["OOP (Lab)", "Calculus", "OOP"]) == ["OOP (theory and lab)", "Calculus"]
+    subjects = ask("my subjects", STUDENT, session="a2")["answer"]
+    assert subjects.startswith("📚 Your subjects (BS(CS)-I)\n• ")
+    card = {"type": "class_teachers", "class": "BS(CS)-II", "teachers": [
+        {"teacher": "M. Sharif", "subject": "OOP (Lab)"}, {"teacher": "M. Sharif", "subject": "OOP"},
+        {"teacher": "Muhammad Zeb", "subject": "Applied Physics"},
+        {"teacher": "Abbas Ali Shah", "subject": "Applied Physics (Lab)"}]}
+    assert present(card, STUDENT) == (
+        "👨‍🏫 Teachers of BS(CS)-II\n• OOP (theory and lab) — M. Sharif\n"
+        "• Applied Physics — Muhammad Zeb\n• Applied Physics (Lab) — Abbas Ali Shah"
+    )
+    assert plain_text("Head Dr. Muazzam Block‑II") == "Head Dr. Muazzam Block-II"
 
 
 # ── Teacher: next class and free slots ───────────────────────────────────────

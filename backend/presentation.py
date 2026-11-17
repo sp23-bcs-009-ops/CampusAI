@@ -39,6 +39,8 @@ def present(answer: Any, identity: dict | None) -> Any:
 
 def plain_text(text: str) -> str:
     text = str(text or "")
+    # The AI sometimes uses non-breaking spaces and hyphens; show plain ones.
+    text = re.sub(r"[    ]", " ", text).replace("‑", "-")
     # [label](url) → label (url)
     text = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"\1 (\2)", text)
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=re.S)
@@ -247,13 +249,22 @@ def card_to_text(card: dict) -> str:
             lines = [f"I couldn't find teachers for {card.get('class')} in the current timetable."]
         else:
             lines = [f"👨‍🏫 Teachers of {card.get('class')}"]
-            seen = set()
+            # One line per course and teacher: "OOP (theory and lab) — M. Sharif".
+            grouped: dict[tuple, list[str]] = {}
             for row in teachers:
-                key = (row.get("teacher"), row.get("subject"))
-                if key in seen:
-                    continue
-                seen.add(key)
-                lines.append(f"• {row.get('subject')} — {row.get('teacher')}")
+                subject = str(row.get("subject") or "").strip()
+                base = re.sub(r"\s*\(.*?\)\s*", " ", subject).strip()
+                names = grouped.setdefault((base.lower(), row.get("teacher")), [])
+                if subject not in names:
+                    names.append(subject)
+            for (_, teacher), names in grouped.items():
+                has_lab = any("lab" in n.lower() for n in names)
+                has_theory = any("lab" not in n.lower() for n in names)
+                if len(names) > 1 and has_lab and has_theory:
+                    label = re.sub(r"\s*\(.*?\)\s*", " ", names[0]).strip() + " (theory and lab)"
+                else:
+                    label = " / ".join(names)
+                lines.append(f"• {label} — {teacher}")
 
     elif kind == "subject_teachers":
         matches = card.get("matches") or []
