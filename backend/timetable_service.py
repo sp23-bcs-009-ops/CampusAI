@@ -625,59 +625,16 @@ def timetable_question(text):
     return has_keyword or has_class
 
 
-# Off-topic keywords that have nothing to do with a university timetable
-_OFF_TOPIC_KEYWORDS = [
-    # Animals / nature
-    "cat", "dog", "animal", "bird", "fish", "lion", "tiger", "elephant",
-    "snake", "horse", "cow", "pet", "wildlife", "zoo",
-    # General knowledge / science
-    "history", "geography", "physics", "chemistry", "biology", "math",
-    "capital of", "who invented", "what is a", "tell me about",
-    "explain", "define", "meaning of", "difference between",
-    # Professor personal background
-    "biography", "background", "personal life", "family", "wife", "husband",
-    "born", "age of", "nationality", "hometown", "qualification", "degree of",
-    "phd", "education of", "experience of",
-    # Tech / coding help
-    "code", "python", "javascript", "html", "css", "programming",
-    "algorithm", "bug", "error", "function", "variable",
-    # Other unrelated
-    "movie", "song", "music", "game", "sport", "cricket", "football",
-    "weather", "news", "politics", "religion", "cook", "recipe",
-    "joke", "story", "poem", "write a poem", "translate",
-]
-
-# Greetings that are always allowed
-_GREETINGS = [
-    "hello", "hi", "hey", "how are you", "good morning",
-    "good afternoon", "good evening", "thanks", "thank you",
-    "assalam", "salam", "bye", "goodbye",
-]
-
 def is_off_topic(text: str) -> bool:
+    """True when the question asks for something unrelated to the campus.
+
+    The chatbot router uses topic_guard directly; this stays for older callers.
     """
-    Returns True if the question is clearly unrelated to the university timetable.
-    Greetings are always allowed. Teacher availability & schedule questions are allowed.
-    """
-    t = text.lower().strip()
+    from topic_guard import has_campus_anchor, is_creative_request, off_topic_category
 
-    # Always allow greetings
-    if any(g in t for g in _GREETINGS):
-        return False
-
-    # Official COMSATS University questions are on-topic.
-    if is_comsats_question(text):
-        return False
-
-    # If it's a timetable question or teacher query, it's on-topic
-    if timetable_question(text) or is_teacher_intent(text):
-        return False
-
-    # Check for off-topic keywords
-    if any(kw in t for kw in _OFF_TOPIC_KEYWORDS):
+    if is_creative_request(text):
         return True
-
-    return False
+    return off_topic_category(text) is not None and not has_campus_anchor(text)
 
 
 def get_schedule(cls, day, slot_filter=None):

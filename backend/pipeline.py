@@ -43,6 +43,7 @@ from knowledge_pack import (
 from llm import get_chat_model, get_fallback_chat_model
 from university_data import UniversityDataUnavailable
 import user_memory
+from topic_guard import has_campus_anchor, is_creative_request, off_topic_category
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompts
@@ -164,7 +165,12 @@ INTRO = (
     "I'm CampusAI, the COMSATS Attock campus assistant. I can help with "
     "timetables, teachers, rooms, events, announcements, and official campus information."
 )
-_UNRELATED_NOTE = "I can only answer the university part of that. I won't answer the unrelated part."
+CLARIFY = (
+    "I'm not sure I understood that. I can help with COMSATS Attock campus questions, "
+    "for example \"BCS-1 timetable on Monday\", \"Is LT 4 free now?\", "
+    "\"Who teaches Data Structures?\" or \"How do I apply for admission?\""
+)
+_UNRELATED_NOTE ="I can only answer the university part of that. I won't answer the unrelated part."
 CAMPUS_WEBSITE = "https://attock.comsats.edu.pk/"
 NOT_IN_RECORDS = (
     "I don't have that in the current campus website records yet. "
@@ -394,29 +400,9 @@ def _uses_previous_day(q_lower: str) -> bool:
     return bool(re.search(r"\b(then|that day|the same day)\b", q_lower))
 
 
-_UNIVERSITY_SIGNALS = (
-    "timetable", "schedule", "class", "subject", "semester", "event",
-    "announcement", "notification", "teacher", "room", "lecture",
-    "who am i", "my name", "department", "campus", "comsats", "exam",
-    "lost", "found", "faculty", "professor", "free", "busy", "available",
-    "lab", "teaches", "teaching", "studying", "course",
-)
-
-
-def _has_unrelated_keyword(question: str) -> bool:
-    """Match off-topic words, not pieces of campus words such as notifications."""
-    text = (question or "").lower()
-    return any(
-        re.search(r"\b" + re.escape(keyword) + r"\b", text)
-        for keyword in tt._OFF_TOPIC_KEYWORDS
-    )
-
-
 def _has_university_signal(question: str) -> bool:
-    text = (question or "").lower()
-    if any(signal in text for signal in _UNIVERSITY_SIGNALS):
-        return True
-    return _class_key_from_text(question) is not None
+    """The question points at the campus: a campus word or a class code."""
+    return has_campus_anchor(question) or _class_key_from_text(question) is not None
 
 
 _PACK_ANCHORS = (
@@ -431,36 +417,38 @@ def _has_pack_anchor(question: str) -> bool:
 
 
 def _clearly_unrelated(question: str) -> bool:
-    """True when the question is only unrelated. This does not download the timetable."""
-    if not _has_unrelated_keyword(question) or _has_university_signal(question):
+    """True only when the question asks for something outside the campus.
+
+    A campus word or class code keeps the question,
+    so "cricket match on campus" or "who teaches Physics?" still get answered.
+    Jokes, poems and stories are declined even when they mention the campus.
+    This does not download the timetable.
+    """
+    if _is_social(question) or _is_bot_identity(question):
         return False
-    if _is_social(question) or _is_bot_identity(question) or is_comsats_question(question):
-        return False
-    try:
-        if pack_is_relevant(question) and _has_pack_anchor(question):
-            return False
-    except KnowledgePackUnavailable:
-        pass
-    return True
+    if is_creative_request(question):
+        return True
+    return off_topic_category(question) is not None and not _has_university_signal(question)
 
 
 def _university_portion(question: str) -> str | None:
     """The university clauses of a mixed question. None when it is not mixed."""
-    if not _has_unrelated_keyword(question) or not _has_university_signal(question):
+    if off_topic_category(question) is None or not _has_university_signal(question):
         return None
     pieces = re.split(r"(?:,?\s+and\s+|\s*;\s+|\s+also\s+|\s+plus\s+|\?\s+)", question, flags=re.I)
     kept = []
+    dropped = False
     for piece in pieces:
         text = piece.strip(" ?.,")
-        if not text or _has_unrelated_keyword(text) or not _has_university_signal(text):
+        if not text:
             continue
-        kept.append(text)
-    if not kept:
+        if _clearly_unrelated(text):
+            dropped = True
+        elif _has_university_signal(text):
+            kept.append(text)
+    if not kept or not dropped:
         return None
-    joined = ". ".join(kept)
-    if joined.strip() == question.strip() or _has_unrelated_keyword(joined):
-        return None
-    return joined
+    return ". ".join(kept)
 
 
 def _with_unrelated_note(result: dict) -> dict:
@@ -636,9 +624,6 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
                 return RoutedQuestion("comsats_info", question, **base)
         except KnowledgePackUnavailable:
             pass
-
-    if tt.is_off_topic(question):
-        return RoutedQuestion("off_topic", question, **base)
 
     # A verified profile answers "my schedule". Words such as "I am a teacher" do not.
     if from_profile and cls and identity and identity.get("type") == "student":
@@ -1305,7 +1290,8 @@ def handle_general(rq: RoutedQuestion, memory: SessionMemory) -> Any:
             "Ask about a class timetable, a teacher, a room, events, announcements, "
             "lost and found, or notifications."
         )
-    return REFUSAL
+    # Not off-topic, just unclear: help the user ask instead of refusing them.
+    return CLARIFY
 
 
 # ─────────────────────────────────────────────────────────────────────────────
