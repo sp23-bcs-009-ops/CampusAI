@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View, Text, Modal, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, TouchableOpacity, TextInput, StyleSheet, Platform,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerAndroid } from '../DateTimePickerAdapter';
 import { C } from '../../constants/colors';
 import { hasStaffRole, NOTIF_TYPES, DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
 import { getFloorMapRooms } from '../../utils/availableRooms';
-import { ErrBanner, PrimaryButton, SectionLabel, Chip } from '../ui';
+import { toSubjectName } from '../../utils/helpers';
+import { ErrBanner, PostModalShell, PrimaryButton, SectionLabel, Chip } from '../ui';
 
 const DEPT_LIST = [
   { key: 'cs', label: 'CS — Computer Science' },
@@ -41,8 +41,6 @@ export default function PostModal({
 }) {
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const isEdit = !!editNotif;
-
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
   const [step,       setStep]       = useState(isEdit ? 3 : 1);
   const [type,       setType]       = useState(editNotif?.type || null);
@@ -202,12 +200,8 @@ export default function PostModal({
   const t = type ? NOTIF_TYPES[type] : null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleClose} />
-        <View style={[styles.sheet, { backgroundColor: bg, borderTopColor: bdr }]}>
-          <View style={[styles.handle, { backgroundColor: ts }]} />
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <PostModalShell visible={visible} onClose={handleClose} backgroundColor={bg} borderColor={bdr} handleColor={ts}>
+
 
             {/* ── Step 1: Type select ── */}
             {step === 1 && (
@@ -434,10 +428,8 @@ export default function PostModal({
                 <PrimaryButton label={isEdit ? 'Save Changes' : 'Post Notification'} onPress={handleSubmit} />
               </>
             )}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+    </PostModalShell>
   );
 }
 
@@ -450,9 +442,6 @@ function BackBtn({ onPress, ts }) {
 }
 
 const styles = StyleSheet.create({
-  overlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
-  sheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 20, paddingBottom: 40, maxHeight: '92%' },
-  handle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, opacity: 0.4 },
   heading:  { fontSize: 15, fontWeight: '700', marginBottom: 14 },
   typeRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 10 },
   typeLabel:{ fontSize: 14, fontWeight: '700' },

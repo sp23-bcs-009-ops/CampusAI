@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, StyleSheet, Linking, Platform,
@@ -7,7 +7,7 @@ import DateTimePicker from '../components/DateTimePickerAdapter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { DEPT_MAX_SEM, SEM_LABELS, STUDENT_DEPARTMENTS } from '../constants/config';
-import { calcAge } from '../utils/helpers';
+import { calcAge, toSubjectName } from '../utils/helpers';
 import { InfoRow } from '../components/ui';
 import {
   canUseDeveloperMode,
@@ -22,7 +22,6 @@ export default function ProfileScreen({
   subjectsList = [], availableSubjects = [], developerTeacherNames = [],
   onSelectDeveloperTeacher,
 }) {
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
   const normalizeSubjects = (arr) => (arr || []).map(toSubjectName).filter(Boolean);
   const subjectOptions = Array.from(new Set(normalizeSubjects(subjectsList)));
   const addSubjectOptions = Array.from(new Set(normalizeSubjects(availableSubjects)));

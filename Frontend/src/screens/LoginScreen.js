@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -9,16 +9,8 @@ import { C } from '../constants/colors';
 import { ALLOWED_DOMAIN, USER_TYPES } from '../constants/config';
 import { getSemester, getDepartmentLabel, getDept } from '../utils/helpers';
 import { COMSATSLogo, InputField, PrimaryButton, ErrBanner } from '../components/ui';
-import { authSignUp, authSignIn, authAnonymousSignIn, authSendVerification, authGetUser, authGoogleSignIn, saveUserProfile, getUserProfile } from '../firebase/firestore';
+import { authSignUp, authSignIn, authAnonymousSignIn, authSendVerification, authGetUser, saveUserProfile, getUserProfile } from '../firebase/firestore';
 import { upsertTeacherRecord } from '../firebase/teachers';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// ⚠️ Replace with your actual Google OAuth Client IDs from Google Cloud Console
-const GOOGLE_CLIENT_ID_ANDROID = '245229034731-v0c3ul7q8206r6t8drttjen4lcbvb6c9.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_WEB     = '245229034731-v0c3ul7q8206r6t8drttjen4lcbvb6c9.apps.googleusercontent.com';
 
 export default function LoginScreen({ onLogin, onGuest }) {
   const [mode,        setMode]        = useState('login');
@@ -36,46 +28,6 @@ export default function LoginScreen({ onLogin, onGuest }) {
   const [loading,     setLoading]     = useState(false);
   const [awaitVerify, setAwaitVerify] = useState(false);
   const [idToken,     setIdToken]     = useState(null);
-
-  // ── Google Sign In ───────────────────────────────────────────────────────
-  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    androidClientId: GOOGLE_CLIENT_ID_ANDROID,
-    webClientId:     GOOGLE_CLIENT_ID_WEB,
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const { id_token } = googleResponse.authentication;
-      handleGoogleResponse(id_token);
-    }
-  }, [googleResponse]);
-
-  async function handleGoogleResponse(token) {
-    setLoading(true); setErr('');
-    try {
-      const auth = await authGoogleSignIn(token);
-      const gEmail = auth.email;
-      if (!gEmail.endsWith(ALLOWED_DOMAIN)) {
-        setErr(`Please use your university email (${ALLOWED_DOMAIN})`);
-        setLoading(false); return;
-      }
-      const dept = getDept(gEmail);
-      onLogin({
-        uid: auth.localId,
-        email: gEmail,
-        type: 'student',
-        name: auth.displayName || gEmail.split('@')[0],
-        fullName: auth.displayName || '',
-        dob: '', phone: '',
-        semester: getSemester(gEmail),
-        department: getDepartmentLabel(gEmail),
-        dept,
-        photoUrl: auth.photoUrl || null,
-      });
-    } catch (ex) {
-      setErr('Google sign in failed: ' + ex.message);
-    } finally { setLoading(false); }
-  }
 
   function validateEmail(mail) {
     if (!mail.endsWith(ALLOWED_DOMAIN)) return `Email must end with ${ALLOWED_DOMAIN}`;
@@ -282,20 +234,6 @@ async function handleCheckVerification() {
               }
               <TouchableOpacity style={{ alignItems: 'center', marginTop: 10 }}>
                 <Text style={{ color: C.purple, fontSize: 12, fontWeight: '600' }}>Forgot password?</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider}>
-                <View style={styles.divLine} />
-                <Text style={styles.divText}>OR</Text>
-                <View style={styles.divLine} />
-              </View>
-
-              <TouchableOpacity
-                onPress={() => googlePromptAsync()}
-                disabled={!googleRequest || loading}
-                style={[styles.guestBtn, { flexDirection: 'row', gap: 10, marginBottom: 10, borderColor: '#DB4437' }]}>
-                <Text style={{ fontSize: 18 }}>🔴</Text>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#DB4437' }}>Continue with Google</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={onGuest} style={styles.guestBtn}>

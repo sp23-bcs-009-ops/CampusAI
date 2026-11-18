@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import useCampusData from './useCampusData';
 import TimetableView from './components/TimetableView';
 import TeachersView from './components/TeachersView';

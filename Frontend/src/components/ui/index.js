@@ -1,5 +1,4 @@
-import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import Svg, { Path, Circle, Ellipse, Text as SvgText } from 'react-native-svg';
 import { C } from '../../constants/colors';
 
@@ -14,7 +13,7 @@ export function COMSATSLogo({ size = 40 }) {
       <Ellipse cx="50" cy="50" rx="26" ry="26" fill="none" stroke="white" strokeWidth="1.5" />
       <Ellipse cx="50" cy="50" rx="26" ry="7"  fill="none" stroke="white" strokeWidth="1.8" />
       <Path d="M 18 72 A 38 38 0 0 0 82 72" fill="white" />
-      <SvgText x="50" y="84" textAnchor="middle" fontSize="8" fill="#3D2B8E" fontWeight="700">ISLAMABAD</SvgText>
+      <SvgText x="50" y="84" textAnchor="middle" fontSize="8.5" fill="#3D2B8E" fontWeight="700">CUI ATK</SvgText>
     </Svg>
   );
 }
@@ -33,6 +32,32 @@ export function PrimaryButton({ label, onPress, style, disabled, loading }) {
         : <Text style={styles.primaryBtnText}>{label}</Text>
       }
     </TouchableOpacity>
+  );
+}
+
+export function PostSubmit({ error, uploading, label, mutedColor, onSubmit }) {
+  return <>
+    <ErrBanner msg={error} />
+    {uploading ? (
+      <View style={{ alignItems: 'center', padding: 14 }}>
+        <ActivityIndicator size="small" color={C.purple} />
+        <Text style={{ fontSize: 12, color: mutedColor, marginTop: 8 }}>Uploading...</Text>
+      </View>
+    ) : <PrimaryButton label={label} onPress={onSubmit} style={{ marginTop: 4 }} />}
+  </>;
+}
+
+export function PostModalShell({ visible, onClose, backgroundColor, borderColor, handleColor, children }) {
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose} />
+        <View style={[styles.modalSheet, { backgroundColor, borderTopColor: borderColor }]}>
+          <View style={[styles.modalHandle, { backgroundColor: handleColor }]} />
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -86,16 +111,6 @@ export function Chip({ label, active, onPress, activeColor, dark }) {
   );
 }
 
-// ─── Dark mode toggle ─────────────────────────────────────────────────────
-export function DarkToggle({ dark, onToggle }) {
-  return (
-    <TouchableOpacity onPress={onToggle} activeOpacity={0.8}
-      style={styles.darkToggle}>
-      <Text style={{ fontSize: 16 }}>{dark ? '☀️' : '🌙'}</Text>
-    </TouchableOpacity>
-  );
-}
-
 // ─── Info row (My Page) ───────────────────────────────────────────────────
 export function InfoRow({ label, value, dark, children }) {
   const tp  = dark ? '#EDE9FF' : '#1A0F4A';
@@ -109,17 +124,12 @@ export function InfoRow({ label, value, dark, children }) {
   );
 }
 
-// ─── Warning banner ───────────────────────────────────────────────────────
-export function WarningBanner({ msg, dark }) {
-  return (
-    <View style={[styles.warnBanner, { backgroundColor: dark ? '#2A1C0A' : '#FEF9C3' }]}>
-      <Text style={{ fontSize: 10, color: '#854D0E', fontWeight: '600' }}>⚠️ {msg}</Text>
-    </View>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
+  modalOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 20, paddingBottom: 40, maxHeight: '92%' },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, opacity: 0.4 },
+
   primaryBtn: {
     paddingVertical: 13,
     borderRadius: 14,
@@ -156,21 +166,10 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 10, fontWeight: '700' },
 
-  darkToggle: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-
   infoRow: {
     paddingVertical: 13,
     borderBottomWidth: 1,
   },
   infoLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
   infoValue: { fontSize: 13, fontWeight: '600' },
-
-  warnBanner: {
-    borderWidth: 1, borderColor: '#CA8A04',
-    borderRadius: 10, padding: 10, marginTop: 10,
-  },
 });

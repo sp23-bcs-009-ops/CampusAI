@@ -1,4 +1,4 @@
-import { FS_BASE, STORAGE_BASE, FIREBASE_CONFIG } from './config';
+import { FS_BASE, FIREBASE_CONFIG } from './config';
 
 const AUTH_BASE = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const API_KEY   = FIREBASE_CONFIG.apiKey;
@@ -85,22 +85,6 @@ export async function authSendVerification(idToken) {
   });
   const d = await r.json();
   if (d.error) throw new Error(d.error.message);
-  return d;
-}
-
-export async function authGoogleSignIn(idToken) {
-  const r = await fetch(`${AUTH_BASE}:signInWithIdp?key=${API_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      postBody: `id_token=${idToken}&providerId=google.com`,
-      requestUri: 'http://localhost',
-      returnIdpCredential: true,
-      returnSecureToken: true,
-    }),
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error.message);
-  setAuthToken(d.idToken, d.refreshToken);
   return d;
 }
 
@@ -221,71 +205,6 @@ export async function fsList(collection, { throwOnError = false } = {}) {
     if (throwOnError) throw error;
     return [];
   }
-}
-
-/** Merge a large teacher seed list while keeping legacy timetable schedules intact. */
-export async function fsBulkUpsertTeachers(records, onProgress = () => {}) {
-  const existingDocs = await fsList('teachers', { throwOnError: true });
-  const byName = new Map(existingDocs.filter(doc => doc.name).map(doc => [
-    String(doc.name).trim().toLocaleLowerCase(), doc,
-  ]));
-  const usedIds = new Map(existingDocs.map(doc => [doc._docId, String(doc.name || '').trim().toLocaleLowerCase()]));
-  const writes = [];
-
-  for (const entry of records || []) {
-    const name = String(entry?.name || '').trim();
-    if (!name) continue;
-    const key = name.toLocaleLowerCase();
-    const prior = byName.get(key);
-    let docId = prior?._docId || name.replace(/[^\w()&.-]+/g, '_').replace(/^_+|_+$/g, '');
-    if (!docId) docId = `teacher_${writes.length}`;
-    if (!prior && usedIds.has(docId) && usedIds.get(docId) !== key) {
-      const baseId = docId;
-      let suffix = 2;
-      while (usedIds.has(`${baseId}_${suffix}`)) suffix += 1;
-      docId = `${baseId}_${suffix}`;
-    }
-    usedIds.set(docId, key);
-
-    const fields = { ...(prior || {}) };
-    delete fields._docId;
-    delete fields.email;
-    delete fields.phone;
-    delete fields.accountEmails;
-    fields.name = prior?.name || name;
-    fields.department = String(entry.department || 'CS').trim();
-    fields.position = String(entry.position || '').trim();
-    fields.schedule = Array.isArray(prior?.schedule) ? prior.schedule : [];
-    fields.classCount = Number(prior?.classCount || 0);
-    fields.updatedAt = new Date().toISOString();
-    writes.push({ docId, fields });
-  }
-
-  const batchSize = 5;
-  for (let offset = 0; offset < writes.length; offset += batchSize) {
-    const batch = writes.slice(offset, offset + batchSize);
-    await Promise.all(batch.map(({ docId, fields }) =>
-      fsSet(`teachers/${encodeURIComponent(docId)}`, fields)
-    ));
-    onProgress({ completed: Math.min(offset + batch.length, writes.length), total: writes.length });
-  }
-  return { count: writes.length };
-}
-
-export async function storageUpload(storagePath, fileUri, mimeType = 'application/pdf') {
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-  const uploadUrl = `${STORAGE_BASE}?uploadType=media&name=${encodeURIComponent(storagePath)}`;
-  const r = await fetch(uploadUrl, {
-    method: 'POST', headers: authHeaders({ 'Content-Type': mimeType }), body: blob,
-  });
-  if (!r.ok) {
-    const errorText = await r.text();
-    console.error("Firebase Storage Upload Error:", r.status, errorText);
-    throw new Error('Storage upload failed: ' + errorText);
-  }
-  const d = await r.json();
-  return `${STORAGE_BASE}/${encodeURIComponent(d.name)}?alt=media`;
 }
 
 export async function saveUserProfile(email, profile) {

@@ -1,6 +1,4 @@
-function normalize(value) {
-  return String(value ?? '').trim().toLocaleLowerCase();
-}
+import { normalizeText as normalize } from './helpers.js';
 
 export function getTeacherNames(timetable) {
   const names = new Map();

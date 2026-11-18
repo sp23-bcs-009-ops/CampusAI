@@ -1,9 +1,5 @@
 import { DEPT_FLOORS } from '../constants/config.js';
-import { dateToDayName, getRoomTimetableSlots } from './helpers.js';
-
-function normalize(value) {
-  return String(value ?? '').trim().toLocaleLowerCase();
-}
+import { dateToDayName, getRoomTimetableSlots, normalizeText as normalize } from './helpers.js';
 
 function toMinutes(value) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || '').trim());

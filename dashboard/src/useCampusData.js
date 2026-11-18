@@ -20,11 +20,10 @@ export default function useCampusData() {
     teachers: {},          // { teacherName: [{day,time,class,subject,room}] }
     events: [],
     meta: null,
-    error: null,
   });
 
   const load = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }));
+    setState((s) => ({ ...s, loading: true }));
 
     // ── Try Firestore first ─────────────────────────────────────
     try {
@@ -51,7 +50,7 @@ export default function useCampusData() {
 
         setState({
           loading: false, source: 'firebase',
-          classes, teachers, events: normaliseEvents(events), meta, error: null,
+          classes, teachers, events: normaliseEvents(events), meta,
         });
         return;
       }
@@ -67,8 +66,7 @@ export default function useCampusData() {
       teachers: localSnapshot.teachers,
       events: [],
       meta: localSnapshot.meta,
-      error: null,
-    });
+      });
   }, []);
 
   useEffect(() => { load(); }, [load]);

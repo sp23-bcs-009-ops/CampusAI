@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Alert, AppState, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -31,6 +31,7 @@ import useEmergencyAnnouncements from './src/hooks/useEmergencyAnnouncements';
 import useScheduleMode from './src/hooks/useScheduleMode';
 import ScheduleModePicker from './src/components/ScheduleModePicker';
 import { buildClashingSubjectAliasMap, normalizeSubjectKey, resolveSubjectAlias } from './src/utils/clashingSubjectAliases';
+import { toSubjectName } from './src/utils/helpers';
 import { getDeveloperNow, getDeveloperViewUser, isDeveloperModeEnabled, setDeveloperRole } from './src/utils/developerMode';
 import { isArrangedClassMine, isStudentClassSelected } from './src/utils/classOwnership';
 import { getTeacherAssignments, getTeacherNames } from './src/utils/teacherPerspective';
@@ -100,6 +101,38 @@ function notificationProfileSettings(user) {
     subjects: JSON.stringify(Array.isArray(user.subjects) ? user.subjects : []),
     updatedAt: new Date().toISOString(),
   };
+}
+
+function normaliseRoomId(roomId) {
+  const raw = String(roomId || '').trim();
+  if (!raw) return raw;
+  const ltMatch = raw.match(/LT\s*(\d+)/i);
+  if (ltMatch) return `LT${ltMatch[1]}`;
+  const labMatch = raw.match(/(?:C\.?\s*Lab|Lab)\s*(\d+)/i);
+  return labMatch ? `Lab${labMatch[1]}` : raw;
+}
+
+function withOwnership(slot, user, currentSem, subjectKeys, aliasMap) {
+  const normalized = { ...slot, subject: resolveSubjectAlias(slot.subject, aliasMap) };
+  let isMine = false;
+  if (user?.type === 'teacher') {
+    isMine = String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase()
+      === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase();
+  } else if (user?.type !== 'staff') {
+    isMine = isStudentClassSelected(normalized, {
+      dept: user?.dept,
+      semester: currentSem,
+      subjectKeys,
+    });
+  }
+  return { ...normalized, isMine };
+}
+
+function mapTimetableWithOwnership(timetable, user, currentSem, subjectKeys, aliasMap) {
+  return Object.fromEntries(Object.entries(timetable || {}).map(([room, slots]) => [
+    room,
+    (slots || []).map(slot => withOwnership(slot, user, currentSem, subjectKeys, aliasMap)),
+  ]));
 }
 
 export default function App() {
@@ -332,24 +365,10 @@ export default function App() {
   }, []);
 
   // ── isMine: mark slots belonging to the current user's subjects ───────────
-  function normaliseRoomId(roomId) {
-    const raw = String(roomId || '').trim();
-    if (!raw) return raw;
-
-    const ltMatch = raw.match(/LT\s*(\d+)/i);
-    if (ltMatch) return `LT${ltMatch[1]}`;
-
-    const labMatch = raw.match(/(?:C\.?\s*Lab|Lab)\s*(\d+)/i);
-    if (labMatch) return `Lab${labMatch[1]}`;
-
-    return raw;
-  }
-
   const currentSem = viewUser?.type === 'staff' ? null : Number(viewUser?.semester || 7);
   const currentDept = String(viewUser?.dept || '').toLowerCase();
   const semSubjects = (currentSem ? (subjectsBySemester?.[currentSem] || subjectsList || []) : [])
     .filter(subject => !subject?.dept || !currentDept || String(subject.dept).toLowerCase() === currentDept);
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
   const semSubjectNames = Array.from(new Set(semSubjects.map(toSubjectName).filter(Boolean)));
   const availableSubjectNames = Array.from(new Set(
     Object.values(subjectsBySemester || {}).flat()
@@ -400,28 +419,8 @@ export default function App() {
       semester: currentSem,
       subjectKeys: userSubjectKeys,
     }),
-  })), [arrangedClasses, viewUser, currentSem, userSubjects, subjectAliasMap]);
-  const rawTimetable = Object.fromEntries(
-    Object.entries(mergedRawTimetable).map(([room, slots]) => [
-      room,
-      (slots || []).map(slot => {
-        const normalizedSlot = {
-          ...slot,
-          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
-        };
-        return {
-          ...normalizedSlot,
-          isMine: viewUser?.type === 'staff' ? false : viewUser?.type === 'teacher'
-            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(viewUser?.fullName || viewUser?.name || '').trim().toLocaleLowerCase()
-            : isStudentClassSelected(normalizedSlot, {
-              dept: viewUser?.dept,
-              semester: currentSem,
-              subjectKeys: userSubjectKeys,
-            }),
-        };
-      }),
-    ])
-  );
+  })), [arrangedClasses, viewUser, currentSem, userSubjectKeys, subjectAliasMap]);
+  const rawTimetable = mapTimetableWithOwnership(mergedRawTimetable, viewUser, currentSem, userSubjectKeys, subjectAliasMap);
   const timetable = applyLTPeriodSettingsToTimetable(
     rawTimetable,
     adjustedLectureSlotsByDepartmentSemester,
@@ -430,25 +429,7 @@ export default function App() {
 
   const examWithOwnership = {
     ...exam,
-    timetables: Object.fromEntries(Object.entries(exam?.timetables || {}).map(([room, slots]) => [
-      room,
-      (slots || []).map(slot => {
-        const normalizedSlot = {
-          ...slot,
-          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
-        };
-        return {
-          ...normalizedSlot,
-          isMine: viewUser?.type === 'staff' ? false : viewUser?.type === 'teacher'
-            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(viewUser?.fullName || viewUser?.name || '').trim().toLocaleLowerCase()
-            : isStudentClassSelected(normalizedSlot, {
-              dept: viewUser?.dept,
-              semester: currentSem,
-              subjectKeys: userSubjectKeys,
-            }),
-        };
-      }),
-    ])),
+    timetables: mapTimetableWithOwnership(exam?.timetables, viewUser, currentSem, userSubjectKeys, subjectAliasMap),
   };
 
   useEffect(() => {

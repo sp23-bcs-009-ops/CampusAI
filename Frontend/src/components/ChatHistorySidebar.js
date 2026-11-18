@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Pressable, useWindowDimensions,
 } from 'react-native';

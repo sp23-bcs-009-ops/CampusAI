@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { C } from '../constants/colors';
 import { TIMETABLE_COLLECTION } from '../hooks/useTimetable';

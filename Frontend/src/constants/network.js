@@ -84,4 +84,3 @@ export function getServerUrl(port, envOverrideName) {
 }
 
 export const getAiServerUrl = () => getServerUrl(8000, 'EXPO_PUBLIC_AI_SERVER_URL');
-export const getTimetableServerUrl = () => getServerUrl(3000, 'EXPO_PUBLIC_TIMETABLE_SERVER_URL');

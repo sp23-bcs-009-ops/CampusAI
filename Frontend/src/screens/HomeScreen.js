@@ -1,20 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Modal, ActivityIndicator, TextInput,
+  StyleSheet, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as DocumentPicker from 'expo-document-picker';
-import { C } from '../constants/colors';
-import { SS } from '../constants/colors';
+import { C, SS } from '../constants/colors';
 import { DEPT_MAP, DEPT_MAX_SEM, DEPT_FLOOR_ROOMS, FALLBACK_LECTURE_SLOTS, ISSUE_CATEGORIES, can, hasStaffRole } from '../constants/config';
-import { getAiServerUrl } from '../constants/network';
 import { toMin, getFullRoomStatus, getRoomTimetableSlots, roomDepartment } from '../utils/helpers';
-import { fsAdd, fsDelete, fsList, fsSet, fsUpdate, getAuthTokens } from '../firebase/firestore';
+import { fsAdd, fsDelete, fsList, fsUpdate } from '../firebase/firestore';
 import ArcMap from '../components/map/ArcMap';
 import { COMSATSLogo } from '../components/ui';
 import { SCHEDULE_MODES } from '../hooks/useScheduleMode';
 import TimetableAdminPanel from '../components/TimetableAdminPanel';
+import TimetableUploadPanel from '../components/TimetableUploadPanel';
 import SearchClass from '../components/SearchClass';
 import {
   DEVELOPER_WEEKDAYS,
@@ -375,7 +373,7 @@ export default function HomeScreen({
 
         {/* Admin: TT Upload */}
         {can.uploadTimetable(user) && (
-          <AdminTTUpload dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
+          <TimetableUploadPanel dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
         )}
         {hasStaffRole(user) && (
           <TimetableAdminPanel
@@ -913,129 +911,6 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   );
 }
 
-// ─── Admin TT Upload ──────────────────────────────────────────────────────
-export function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
-  const [uploading, setUploading] = useState(false);
-  const [status, setStatus] = useState(null);
-  const [msg, setMsg] = useState('');
-  const [progress, setProgress] = useState('');
-
-  const tp = dark ? '#EDE9FF' : '#1A0F4A';
-  const ts = dark ? '#9B7EF8' : '#6C47D4';
-  const bdr = dark ? '#2A1C6B' : '#E2E0F5';
-  const ib = dark ? '#0A0A1E' : '#F8F7FF';
-  const cardBg = dark ? '#12123A' : '#FFFFFF';
-  async function handleUpload() {
-    const isExamUpload = mode === 'exam';
-    const result = await DocumentPicker.getDocumentAsync({
-      type: isExamUpload
-        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : 'application/pdf',
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-    const file = result.assets?.[0];
-    if (!file) return;
-
-    setUploading(true); setStatus(null); setProgress(isExamUpload ? 'Sending Excel datesheet...' : 'Sending PDF...');
-    try {
-      const fileBlob = await fetch(file.uri).then(res => res.blob());
-
-      const formData = new FormData();
-      formData.append(isExamUpload ? 'xlsx' : 'pdf', fileBlob, file.name);
-      if (!isExamUpload) {
-        formData.append('version', `v${new Date().toLocaleDateString('en-GB')}`);
-        formData.append('effectiveDate', new Date().toISOString().split('T')[0]);
-      }
-      formData.append('scheduleMode', mode === 'exam' ? 'exam' : 'regular');
-
-      const { idToken } = getAuthTokens();
-      if (!idToken) throw new Error('Please sign in again before uploading.');
-
-      setProgress(isExamUpload ? 'Validating Excel sheets and exam rows...' : 'Extracting timetable cells with Python layout rules...');
-
-      const response = await fetch(`${getAiServerUrl()}${isExamUpload ? '/upload-exam-timetable' : '/upload-timetable'}`, {
-        method: 'POST',
-        body: formData,
-        headers: { Authorization: `Bearer ${idToken}` },
-        // Don't set Content-Type header - fetch will set it with proper boundary
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.detail || data.error || 'Server error');
-
-      setStatus('success');
-      setMsg(isExamUpload
-        ? `✓ ${data.message}\nClasses: ${data.classCount} · Exams: ${data.rowCount}`
-        : `✓ ${data.message}\nRooms: ${data.roomCount} · Subjects: ${data.subjectCount}`);
-      onUploaded?.({});
-    } catch (e) {
-      setStatus('error');
-      if (e.message.includes('Network') || e.message.includes('fetch')) {
-        setMsg(`Cannot connect to FastAPI at ${getAiServerUrl()}. Check that the backend is running.`);
-      } else {
-        setMsg('Error: ' + e.message);
-      }
-    } finally {
-      setUploading(false); setProgress('');
-    }
-  }
-
-  return (
-    <View style={[styles.uploadCard, { backgroundColor: cardBg, borderColor: bdr }]}>
-      <View style={[styles.uploadHeader, { backgroundColor: C.purpleDark }]}>
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>📄 {mode === 'exam' ? 'Exam' : 'Regular'} Timetable Management</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>{mode === 'exam' ? 'Staff only · Excel datesheet' : 'Staff only · Text PDF'}</Text>
-      </View>
-      <View style={{ padding: 12 }}>
-        {(mode === 'exam' ? examTimetable?.meta : ttMeta) && (
-          <View style={[styles.ttInfoBox, { backgroundColor: ib, borderColor: bdr }]}>
-            <Text style={[styles.ttInfoLabel, { color: ts }]}>CURRENT TIMETABLE</Text>
-            {(mode === 'exam' ? examTimetable?.meta : ttMeta).version && (mode === 'exam' ? examTimetable?.meta : ttMeta).version !== 'pending'
-              ? <>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: tp }}>{(mode === 'exam' ? examTimetable?.meta : ttMeta).version}{(mode === 'exam' ? examTimetable?.meta : ttMeta).effectiveDate ? ` · w.e.f ${(mode === 'exam' ? examTimetable?.meta : ttMeta).effectiveDate}` : ''}</Text>
-                <Text style={{ fontSize: 10, color: ts }}>Uploaded by {(mode === 'exam' ? examTimetable?.meta : ttMeta).uploadedBy}</Text>
-              </>
-              : <Text style={{ fontSize: 11, color: ts, fontStyle: 'italic' }}>No timetable loaded yet</Text>
-            }
-          </View>
-        )}
-
-        <TouchableOpacity onPress={handleUpload} disabled={uploading}
-          style={[styles.uploadBtn, { borderColor: bdr, backgroundColor: ib }]}>
-          {uploading
-            ? <>
-              <ActivityIndicator color={C.purple} size="small" />
-              <Text style={{ fontSize: 11, color: ts, marginTop: 8, textAlign: 'center' }}>{progress}</Text>
-            </>
-            : <>
-              <Text style={{ fontSize: 22, marginBottom: 4 }}>⬆️</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: tp }}>{mode === 'exam' ? 'Upload Exam Datesheet (Excel)' : 'Upload Timetable PDF'}</Text>
-              <Text style={{ fontSize: 10, color: ts }}>{mode === 'exam' ? 'XLSX sheets · text_pdf_timetables' : 'Python layout rules · text_pdf_timetables'}</Text>
-            </>
-          }
-        </TouchableOpacity>
-
-        {status && (
-          <View style={[styles.statusBox, {
-            backgroundColor: status === 'success' ? '#DCFCE7' : '#FEE2E2',
-            borderColor: status === 'success' ? '#16A34A' : '#FCA5A5',
-          }]}>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: status === 'success' ? '#166534' : '#B91C1C', lineHeight: 18 }}>
-              {msg}
-            </Text>
-          </View>
-        )}
-
-        <View style={[styles.statusBox, { backgroundColor: '#EDE9FF', borderColor: '#9B7EF844', marginTop: 8 }]}>
-          <Text style={{ fontSize: 10, color: '#6C47D4', fontWeight: '600' }}>
-            Server URL is detected automatically from the current Expo host.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   officeModal: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '82%', borderTopWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
@@ -1050,10 +925,6 @@ const styles = StyleSheet.create({
   homeHeaderSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 3, fontWeight: '600' },
   homeHeaderDate: { color: 'rgba(255,255,255,0.9)', fontSize: 11, marginTop: 14, fontWeight: '700', letterSpacing: 0.8 },
   homeHeaderTime: { color: '#fff', fontSize: 36, fontWeight: '900', letterSpacing: 0.5, marginTop: 2 },
-  modePill: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 11, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
-  modeDot: { width: 8, height: 8, borderRadius: 4 },
-  modePillText: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  modeDescription: { color: 'rgba(255,255,255,0.75)', fontSize: 10, flex: 1 },
   homeHeaderStatusPill: { marginTop: 12, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
   homeHeaderStatusText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   floorBar: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1 },
@@ -1080,11 +951,6 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 10, fontWeight: '600' },
   ttBtn: { marginHorizontal: 14, marginBottom: 12, padding: 10, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   ttBtnText: { fontSize: 12, fontWeight: '700' },
-  modeCard: { marginHorizontal: 14, marginBottom: 12, borderWidth: 1, borderRadius: 14, padding: 12 },
-  modeCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  uploadTitle: { fontSize: 13, fontWeight: '800' },
-  modeOptions: { flexDirection: 'row', gap: 8 },
-  modeOption: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 9 },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
   popup: { position: 'absolute', top: 60, bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 24, paddingBottom: 40 },
@@ -1128,10 +994,4 @@ const styles = StyleSheet.create({
   ttRow: { flexDirection: 'row', gap: 10, marginBottom: 7, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderLeftWidth: 3, padding: 8 },
   ttLecBadge: { width: 36, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', padding: 4 },
 
-  uploadCard: { marginHorizontal: 14, marginTop: 4, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  uploadHeader: { padding: 12 },
-  ttInfoBox: { borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1 },
-  ttInfoLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 },
-  uploadBtn: { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 12, padding: 18, alignItems: 'center', marginBottom: 8 },
-  statusBox: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 8 },
 });

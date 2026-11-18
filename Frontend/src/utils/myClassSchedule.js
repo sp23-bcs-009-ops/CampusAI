@@ -1,3 +1,4 @@
+import { normalizeText as normalize } from './helpers.js';
 export const CAMPUS_TIME_ZONE = 'Asia/Karachi';
 export const CLASS_NOTIFICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const NOTIFICATION_ID_PREFIX = 'campusai_myclass_';
@@ -80,9 +81,6 @@ export function karachiWallTimeToDate(dateKey, time) {
   return dateKeyFromParts(localParts) === dateKey && localTime === time ? result : null;
 }
 
-function normalize(value) {
-  return String(value ?? '').trim().toLocaleLowerCase();
-}
 
 function matchesUser(slot, { dept, semester }) {
   const slotDept = normalize(slot?._dept || slot?.dept || slot?.department);

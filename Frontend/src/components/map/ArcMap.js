@@ -1,9 +1,9 @@
 import React, { useRef } from 'react';
 import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import Svg, { Path, Rect, Circle, Text as SvgText, Line, G } from 'react-native-svg';
-import { DEPT_FLOORS, DEPT_FLOOR_LABELS, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
+import { DEPT_FLOORS, DEPT_FLOOR_LABELS } from '../../constants/config';
 import { SS } from '../../constants/colors';
-import { toMin, getFullRoomStatus } from '../../utils/helpers';
+import { getFullRoomStatus } from '../../utils/helpers';
 
 function polar(cx, cy, r, deg) {
   const rad = deg * Math.PI / 180;

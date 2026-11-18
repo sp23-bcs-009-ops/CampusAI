@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
@@ -332,7 +332,6 @@ const styles = StyleSheet.create({
   detailsButton: { paddingHorizontal: 8, paddingVertical: 6 },
   detailsButtonText: { fontSize: 10, fontWeight: '800' },
   position: { fontSize: 11, fontWeight: '700', marginTop: 4 },
-  meta: { fontSize: 10, marginTop: 3 },
   subjects: { fontSize: 11, lineHeight: 16, marginTop: 5 },
   empty: { alignItems: 'center', paddingHorizontal: 26, paddingVertical: 44 },
   emptyTitle: { fontSize: 15, fontWeight: '800', textAlign: 'center' },

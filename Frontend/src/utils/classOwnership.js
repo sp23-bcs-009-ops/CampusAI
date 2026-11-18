@@ -1,8 +1,5 @@
 import { normalizeSubjectKey } from './clashingSubjectAliases.js';
-
-function normalize(value) {
-  return String(value ?? '').trim().toLocaleLowerCase();
-}
+import { normalizeText as normalize } from './helpers.js';
 
 export function isStudentClassSelected(slot, { dept, semester, subjectKeys }) {
   const slotDept = normalize(slot?._dept || slot?.dept || slot?.department);

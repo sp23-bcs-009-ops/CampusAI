@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator
@@ -6,32 +6,20 @@ import {
 import { C } from '../constants/colors';
 import { getAiServerUrl } from '../constants/network';
 import { getAuthTokens } from '../firebase/firestore';
-import { loadChats, newSessionId, saveChat } from '../utils/chatHistory';
+import { saveChat } from '../utils/chatHistory';
+import useChatSession from '../hooks/useChatSession';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 
 // ── Day order for stable sorting ──────────────────────────────────────────────
 const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function ChatScreen({ user, dark }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput]       = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [savedChats, setSavedChats] = useState([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const {
+    messages, setMessages, input, setInput, loading, setLoading,
+    savedChats, setSavedChats, historyOpen, setHistoryOpen,
+    messagesRef, sessionIdRef, activeChatId, startNewChat, openChat,
+  } = useChatSession(user, user?.email || 'user');
   const scrollViewRef = useRef();
-  const messagesRef = useRef([]);
-
-  // Stable per-conversation id. A new chat does not reuse the previous context.
-  const sessionIdRef = useRef(newSessionId(user?.email || 'user'));
-  const [activeChatId, setActiveChatId] = useState(sessionIdRef.current);
-
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  useEffect(() => {
-    loadChats(user).then(setSavedChats).catch(() => {});
-  }, [user?.email, user?.type]);
 
   // ── Theme tokens ──────────────────────────────────────────────────────────
   const bg         = dark ? '#0A0A1E' : '#F5F4FF';
@@ -270,25 +258,6 @@ export default function ChatScreen({ user, dark }) {
         .then(next => { if (next) setSavedChats(next); })
         .catch(() => {});
     }
-  };
-
-  const startNewChat = () => {
-    const nextId = newSessionId(user?.email || 'user');
-    sessionIdRef.current = nextId;
-    setActiveChatId(nextId);
-    messagesRef.current = [];
-    setMessages([]);
-    setInput('');
-  };
-
-  const openChat = (chat) => {
-    if (!chat?.id) return;
-    sessionIdRef.current = chat.id;
-    setActiveChatId(chat.id);
-    const restored = Array.isArray(chat.messages) ? chat.messages : [];
-    messagesRef.current = restored;
-    setMessages(restored);
-    setInput('');
   };
 
   // ── Render ────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, Alert,
@@ -9,6 +9,7 @@ import { DEPT_MAX_SEM, NOTIF_TYPES, can, hasStaffRole } from '../constants/confi
 import NotifCard from '../components/class/NotifCard';
 import PostModal from '../components/class/PostModal';
 import useNotifs from '../hooks/useNotifs';
+import { toSubjectName } from '../utils/helpers';
 import { getAvailableRoomsForSlot } from '../utils/availableRooms';
 
 const FILTERS = [
@@ -42,8 +43,6 @@ export default function ClassScreen({
 
   const dept     = user?.dept || 'cs';
   const semester = user?.semester || 7;
-
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
   const isStaff = hasStaffRole(user);
   const isTeacher = user?.type === 'teacher';

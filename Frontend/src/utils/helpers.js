@@ -1,5 +1,8 @@
 import { DEPT_MAP, FALLBACK_LECTURE_SLOTS, DAYS } from '../constants/config.js';
 
+export const normalizeText = value => String(value ?? '').trim().toLocaleLowerCase();
+export const toSubjectName = value => typeof value === 'string' ? value : value?.subject || '';
+
 // ─── Auth helpers ─────────────────────────────────────────────────────────
 export function getCurrentIntake() {
   const m = new Date().getMonth();

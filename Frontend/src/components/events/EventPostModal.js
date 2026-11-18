@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  View, Text, Modal, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, TouchableOpacity, TextInput, StyleSheet,
 } from 'react-native';
-import DateTimePicker from '../DateTimePickerAdapter';
-import * as ImagePicker from 'expo-image-picker';
+import DateTimeField from '../DateTimeField';
 import { C } from '../../constants/colors';
 import { EVENT_CATS } from '../../constants/config';
-import { ErrBanner, PrimaryButton, SectionLabel } from '../ui';
-import { storageUpload } from '../../firebase/firestore';
+import { PostSubmit, PrimaryButton, SectionLabel } from '../ui';
+import { pickPostImage } from '../../utils/postImages';
 
 export default function EventPostModal({ visible, dark, onClose, onPost, editEvent }) {
   const isEdit = !!editEvent;
@@ -25,14 +23,6 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
   const [body,        setBody]        = useState(editEvent?.body       || '');
   const [images,      setImages]      = useState(editEvent?.images     || []);
   const [err,         setErr]         = useState('');
-  const [showDatePick,     setShowDatePick]     = useState(false);
-  const [showStartPick,    setShowStartPick]    = useState(false);
-  const [showEndPick,      setShowEndPick]      = useState(false);
-  const [showDeadlinePick, setShowDeadlinePick] = useState(false);
-  const [dateObj,     setDateObj]     = useState(new Date());
-  const [startObj,    setStartObj]    = useState(new Date());
-  const [endObj,      setEndObj]      = useState(new Date());
-  const [deadlineObj, setDeadlineObj] = useState(new Date());
 
   const bg  = dark ? '#1A1A3E' : '#FFFFFF';
   const tp  = dark ? '#EDE9FF' : '#1A0F4A';
@@ -42,20 +32,8 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
   const inp = { borderWidth: 1.5, borderColor: bdr, borderRadius: 12, padding: 11, color: tp, backgroundColor: ib, fontSize: 13, marginBottom: 12 };
 
   async function pickImage() {
-    if (images.length >= 3) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ 
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.1,
-      base64: true 
-    });
-    if (!result.canceled && result.assets?.length > 0) {
-      const asset = result.assets[0];
-      // Since Firebase Storage is unavailable, use base64 data URI
-      const imageUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-      setImages(prev => [...prev, { uri: imageUri }]);
-    }
+    const image = await pickPostImage(images, 3);
+    if (image) setImages(prev => [...prev, image]);
   }
 
   const [uploading, setUploading] = useState(false);
@@ -68,14 +46,11 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
     setUploading(true);
     setErr('');
     try {
-      // Bypass Firebase Storage and use the base64 data URIs directly
-      const finalImages = images;
-
       onPost({
         id:       editEvent?.id || `${Date.now()}`,
         cat, title, date, time, endTime, venue,
         deadline: hasDeadline ? deadline : null,
-        contact, body, images: finalImages,
+        contact, body, images,
         postedBy:   editEvent?.postedBy || 'Staff',
         createdAt:  editEvent?.createdAt || new Date().toISOString().split('T')[0],
       });
@@ -97,12 +72,8 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleClose} />
-        <View style={[styles.sheet, { backgroundColor: bg, borderTopColor: bdr }]}>
-          <View style={[styles.handle, { backgroundColor: ts }]} />
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <PostModalShell visible={visible} onClose={handleClose} backgroundColor={bg} borderColor={bdr} handleColor={ts}>
+
 
             {/* ── Step 1: Warning ── */}
             {step === 1 && (
@@ -143,42 +114,18 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1 }}>
                     <SectionLabel text="Date *" dark={dark} />
-                    <TouchableOpacity onPress={() => setShowDatePick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 12, color: date ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{date || 'YYYY-MM-DD'}</Text>
-                      <Text>📅</Text>
-                    </TouchableOpacity>
-                    {showDatePick && (
-                      <DateTimePicker value={dateObj} mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowDatePick(Platform.OS === 'ios'); if (s) { setDateObj(s); setDate(s.toISOString().split('T')[0]); } }} />
-                    )}
+                    <DateTimeField value={date || 'YYYY-MM-DD'} textColor={date ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} fontSize={12} mode="date" icon="📅" onChange={setDate}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <SectionLabel text="Start" dark={dark} />
-                    <TouchableOpacity onPress={() => setShowStartPick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 12, color: time ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{time || 'HH:MM'}</Text>
-                      <Text>⏰</Text>
-                    </TouchableOpacity>
-                    {showStartPick && (
-                      <DateTimePicker value={startObj} mode="time" is24Hour
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowStartPick(Platform.OS === 'ios'); if (s) { setStartObj(s); setTime(`${String(s.getHours()).padStart(2,'0')}:${String(s.getMinutes()).padStart(2,'0')}`); } }} />
-                    )}
+                    <DateTimeField value={time || 'HH:MM'} textColor={time ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} fontSize={12} mode="time" icon="⏰" is24Hour onChange={setTime}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <SectionLabel text="End" dark={dark} />
-                    <TouchableOpacity onPress={() => setShowEndPick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 12, color: endTime ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{endTime || 'HH:MM'}</Text>
-                      <Text>⏰</Text>
-                    </TouchableOpacity>
-                    {showEndPick && (
-                      <DateTimePicker value={endObj} mode="time" is24Hour
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowEndPick(Platform.OS === 'ios'); if (s) { setEndObj(s); setEndTime(`${String(s.getHours()).padStart(2,'0')}:${String(s.getMinutes()).padStart(2,'0')}`); } }} />
-                    )}
+                    <DateTimeField value={endTime || 'HH:MM'} textColor={endTime ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} fontSize={12} mode="time" icon="⏰" is24Hour onChange={setEndTime}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </View>
                 </View>
 
@@ -195,16 +142,8 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
                 </TouchableOpacity>
                 {hasDeadline && (
                   <>
-                    <TouchableOpacity onPress={() => setShowDeadlinePick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 13, color: deadline ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{deadline ? deadline.replace('T',' ') : 'Select deadline'}</Text>
-                      <Text>⏰</Text>
-                    </TouchableOpacity>
-                    {showDeadlinePick && (
-                      <DateTimePicker value={deadlineObj} mode="datetime"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowDeadlinePick(Platform.OS === 'ios'); if (s) { setDeadlineObj(s); setDeadline(s.toISOString().slice(0,16)); } }} />
-                    )}
+                    <DateTimeField value={deadline ? deadline.replace('T', ' ') : 'Select deadline'} textColor={deadline ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} mode="datetime" icon="⏰" onChange={setDeadline}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </>
                 )}
 
@@ -236,28 +175,15 @@ export default function EventPostModal({ visible, dark, onClose, onPost, editEve
                   </View>
                 )}
 
-                <ErrBanner msg={err} />
-                {uploading ? (
-                  <View style={{ alignItems: 'center', padding: 14 }}>
-                    <ActivityIndicator size="small" color={C.purple} />
-                    <Text style={{ fontSize: 12, color: ts, marginTop: 8 }}>Uploading...</Text>
-                  </View>
-                ) : (
-                  <PrimaryButton label={isEdit ? 'Save Changes' : 'Post Event'} onPress={handlePost} style={{ marginTop: 4 }} />
-                )}
+                <PostSubmit error={err} uploading={uploading} label={isEdit ? 'Save Changes' : 'Post Event'} mutedColor={ts} onSubmit={handlePost} />
               </>
             )}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+    </PostModalShell>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
-  sheet:     { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 20, paddingBottom: 40, maxHeight: '92%' },
-  handle:    { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, opacity: 0.4 },
   heading:   { fontSize: 15, fontWeight: '700', marginBottom: 14 },
   warnBox:   { backgroundColor: '#FEF9C3', borderWidth: 1, borderColor: '#CA8A04', borderRadius: 14, padding: 14, marginBottom: 18 },
   warnTitle: { fontSize: 13, fontWeight: '700', color: '#854D0E', marginBottom: 6 },
