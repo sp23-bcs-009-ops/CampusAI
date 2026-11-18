@@ -23,19 +23,13 @@ export function formatLocalDate(date) {
   ].join('-');
 }
 
-export function canUseDeveloperMode(user, isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__) {
+export function canUseDeveloperMode(user) {
   if (!user) return false;
-  if (isDevelopment && user.testMode === true) return true;
   return DEVELOPER_EMAILS.has(String(user.email || '').trim().toLowerCase());
 }
 
-export function isAlwaysOnTestAccount(user, isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__) {
-  return isDevelopment && user?.testMode === true;
-}
-
-export function isDeveloperModeEnabled(user, isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__) {
-  if (!canUseDeveloperMode(user, isDevelopment)) return false;
-  return isAlwaysOnTestAccount(user, isDevelopment) || user?.developerModeEnabled === true;
+export function isDeveloperModeEnabled(user) {
+  return canUseDeveloperMode(user) && user?.developerModeEnabled === true;
 }
 
 export function parseLocalDate(dateText) {

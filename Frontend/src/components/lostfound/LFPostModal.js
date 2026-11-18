@@ -5,7 +5,7 @@ import {
 import DateTimeField from '../DateTimeField';
 import { C } from '../../constants/colors';
 import { LF_CATS } from '../../constants/config';
-import { PostSubmit, PrimaryButton, SectionLabel } from '../ui';
+import { PostModalShell, PostSubmit, PrimaryButton, SectionLabel } from '../ui';
 import { pickPostImage } from '../../utils/postImages';
 
 export default function LFPostModal({ visible, dark, onClose, onPost }) {

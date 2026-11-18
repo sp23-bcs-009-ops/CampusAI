@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
+  View, Text, FlatList, TouchableOpacity, ActivityIndicator,
   StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { C } from '../constants/colors';
 import { DEPT_MAX_SEM, NOTIF_TYPES, can, hasStaffRole } from '../constants/config';
 import NotifCard from '../components/class/NotifCard';
 import PostModal from '../components/class/PostModal';
-import useNotifs from '../hooks/useNotifs';
 import { toSubjectName } from '../utils/helpers';
 import { getAvailableRoomsForSlot } from '../utils/availableRooms';
 
@@ -25,14 +24,10 @@ const FILTERS = [
 export default function ClassScreen({
   user, dark, lectureSlots, subjectsMap, timetables, isGuest, schedule,
   teacherAssignments = [],
+  notifs, loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
+  teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments,
+  roomReservations, setNotifs, clearNotificationScope,
 }) {
-  const {
-    notifs, loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
-    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments,
-    loadAllReservations, roomReservations, setNotifs,
-    arrangedClasses, cancelledSlots,
-  } = useNotifs(lectureSlots);
-
   const [typeFilter,    setTypeFilter]    = useState('all');
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [staffView, setStaffView] = useState(null);
@@ -40,6 +35,7 @@ export default function ClassScreen({
   const [staffTeacher, setStaffTeacher] = useState(null);
   const [showPost,      setShowPost]      = useState(false);
   const [editItem,      setEditItem]      = useState(null);
+  const [loadingNotifs, setLoadingNotifs] = useState(!isGuest && !hasStaffRole(user));
 
   const dept     = user?.dept || 'cs';
   const semester = user?.semester || 7;
@@ -72,15 +68,29 @@ export default function ClassScreen({
 
   useEffect(() => {
     if (isGuest) return;
-    loadAllReservations();
-    if (isTeacher) {
-      loadTeacherAssignments(teacherAssignments);
-      return;
-    }
-    if (!isStaff) loadNotifs(dept, semester);
+    let mounted = true;
+    const load = async () => {
+      if (!isStaff) {
+        setLoadingNotifs(true);
+        try {
+          if (isTeacher) await loadTeacherAssignments(teacherAssignments);
+          else await loadNotifs(dept, semester);
+        } catch (error) {
+          console.warn('Failed to load class notifications.', error);
+        } finally {
+          if (mounted) setLoadingNotifs(false);
+        }
+      }
+    };
+    load();
+    if (isStaff) loadTeacherOptions(dept);
+    return () => {
+      mounted = false;
+      clearNotificationScope();
+    };
   }, [
     dept, semester, isGuest, isStaff, isTeacher, teacherAssignments,
-    loadTeacherAssignments, loadAllReservations, loadNotifs,
+    loadTeacherAssignments, loadNotifs, loadTeacherOptions, clearNotificationScope,
   ]);
 
   useEffect(() => {
@@ -147,17 +157,22 @@ export default function ClassScreen({
     setTypeFilter('all');
     setSubjectFilter('all');
     setNotifs([]);
-    if (view === 'teacher') loadTeacherOptions(dept);
+    if (view === 'teacher') {
+      setLoadingNotifs(true);
+      loadTeacherOptions(dept).finally(() => setLoadingNotifs(false));
+    }
   }
 
   function selectStaffSemester(value) {
     setStaffSemester(value);
-    loadNotifs(dept, value);
+    setLoadingNotifs(true);
+    loadNotifs(dept, value).finally(() => setLoadingNotifs(false));
   }
 
   function selectStaffTeacher(value) {
     setStaffTeacher(value);
-    loadTeacherNotifs(dept, value);
+    setLoadingNotifs(true);
+    loadTeacherNotifs(dept, value).finally(() => setLoadingNotifs(false));
   }
 
   return (
@@ -223,7 +238,9 @@ export default function ClassScreen({
                 data={teacherOptions}
                 horizontal showsHorizontalScrollIndicator={false}
                 keyExtractor={value => value}
-                ListEmptyComponent={<Text style={styles.staffHint}>No teachers found</Text>}
+                ListEmptyComponent={loadingNotifs
+                  ? <ActivityIndicator color={C.purple} style={{ marginHorizontal: 16 }} />
+                  : <Text style={styles.staffHint}>No teachers found</Text>}
                 renderItem={({ item: value }) => (
                   <TouchableOpacity onPress={() => selectStaffTeacher(value)}
                     style={[styles.staffOptionChip, staffTeacher === value && styles.staffOptionChipActive]}>
@@ -279,8 +296,8 @@ export default function ClassScreen({
 
       {/* Feed */}
       <FlatList
-        data={filtered}
-        keyExtractor={n => String(n.id)}
+        data={loadingNotifs ? [] : filtered}
+        keyExtractor={n => String(n._docId || n.id)}
         contentContainerStyle={styles.feed}
         ListHeaderComponent={
           <>
@@ -304,16 +321,18 @@ export default function ClassScreen({
           </>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
-            <Text style={{ fontSize: 13, color: ts }}>
-              {isStaff && !staffSemester && !staffTeacher
-                ? 'Choose a class, semester, or teacher'
-                : isTeacher && teacherAssignments.length === 0
-                  ? 'No teaching assignments found in the active timetable'
-                  : 'No notifications here'}
-            </Text>
-          </View>
+          loadingNotifs
+            ? <ActivityIndicator color={C.purple} style={{ marginTop: 36 }} />
+            : <View style={styles.empty}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
+                <Text style={{ fontSize: 13, color: ts }}>
+                  {isStaff && !staffSemester && !staffTeacher
+                    ? 'Choose a class, semester, or teacher'
+                    : isTeacher && teacherAssignments.length === 0
+                      ? 'No teaching assignments found in the active timetable'
+                      : 'No notifications here'}
+                </Text>
+              </View>
         }
         renderItem={({ item: n }) => (
           <NotifCard

@@ -4,9 +4,9 @@ import { sortNotifs, dateToDayName } from '../utils/helpers';
 import { DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../constants/config';
 
 const POLL_INTERVAL = 15000;
-const RESERVATION_POLL_INTERVAL = 15000;
+const RESERVATION_POLL_INTERVAL = 60000;
 
-export default function useNotifs(lectureSlots) {
+export default function useNotifs(lectureSlots, active = true) {
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const [notifs,          setNotifs]          = useState([]);
   const [arrangedClasses, setArrangedClasses] = useState([]);
@@ -171,6 +171,15 @@ export default function useNotifs(lectureSlots) {
     applyDocs(docsByAssignment.flat());
   }, [slots]);
 
+  const clearNotificationScope = useCallback(() => {
+    scopeRequestRef.current += 1;
+    deptRef.current = null;
+    semRef.current = null;
+    modeRef.current = 'class';
+    teacherRef.current = null;
+    teacherAssignmentsRef.current = [];
+  }, []);
+
   // Polling every 15 seconds
   useEffect(() => {
     const timer = setInterval(async () => {
@@ -193,11 +202,12 @@ export default function useNotifs(lectureSlots) {
   }, [loadAllReservations, loadTeacherNotifs, loadTeacherAssignments, slots]);
 
   useEffect(() => {
+    if (!active) return undefined;
     const timer = setInterval(() => {
       if (reservationDeptRef.current) loadAllReservations();
     }, RESERVATION_POLL_INTERVAL);
     return () => clearInterval(timer);
-  }, [loadAllReservations]);
+  }, [active, loadAllReservations]);
 
   const postNotif = useCallback(async (notif, dept, semester) => {
     const cleanNotif = normalizeNotif(notif);
@@ -265,6 +275,7 @@ export default function useNotifs(lectureSlots) {
     notifs, arrangedClasses, cancelledSlots, roomReservations,
     loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
     teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments, loadAllReservations,
+    clearNotificationScope,
     setNotifs, setArrangedClasses, setCancelledSlots,
   };
 }

@@ -12,7 +12,6 @@ import { InfoRow } from '../components/ui';
 import {
   canUseDeveloperMode,
   isDeveloperModeEnabled,
-  isAlwaysOnTestAccount,
   setDeveloperMode,
   setDeveloperStudentAcademicInfo,
 } from '../utils/developerMode';
@@ -41,14 +40,16 @@ export default function ProfileScreen({
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [addSubjectSearch, setAddSubjectSearch] = useState('');
   const [editSem,      setEditSem]      = useState(false);
-  const [sem,          setSem]          = useState(user.developerStudentSemester || 1);
-  const [dept,         setDept]         = useState(user.developerStudentDept || 'cs');
-  const [teacherSearch, setTeacherSearch] = useState(user.developerTeacherName || '');
   const canAccessDeveloperMode = canUseDeveloperMode(user);
-  const alwaysOnTestAccount = isAlwaysOnTestAccount(user);
   const developerModeEnabled = isDeveloperModeEnabled(user);
   const developerRole = user.developerRole || (developerModeEnabled ? 'student' : user.type);
   const profileRole = developerModeEnabled ? developerRole : user.type;
+  const initialSemester = developerModeEnabled && developerRole === 'student'
+    ? user.developerStudentSemester || 1
+    : user.semester || 1;
+  const [sem,          setSem]          = useState(initialSemester);
+  const [dept,         setDept]         = useState(user.developerStudentDept || 'cs');
+  const [teacherSearch, setTeacherSearch] = useState(user.developerTeacherName || '');
   const profileName = developerModeEnabled
     ? developerRole === 'teacher'
       ? user.developerTeacherName || 'Dev Teacher'
@@ -122,9 +123,15 @@ export default function ProfileScreen({
   }
 
   useEffect(() => {
-    setSem(user.developerStudentSemester || 1);
+    setSem(developerModeEnabled && developerRole === 'student'
+      ? user.developerStudentSemester || 1
+      : user.semester || 1);
     setDept(user.developerStudentDept || 'cs');
-  }, [user.developerStudentDept, user.developerStudentSemester]);
+  }, [
+    user.uid, user.semester, user.developerStudentDept,
+    user.developerStudentSemester, user.developerModeEnabled,
+    user.developerRole, developerModeEnabled, developerRole,
+  ]);
 
   useEffect(() => {
     const subjects = Array.isArray(user.subjects) ? normalizeSubjects(user.subjects) : subjectOptions;
@@ -233,7 +240,7 @@ export default function ProfileScreen({
         {developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}> 
             <Text style={[styles.cardTitle, { color: '#9A3412', marginBottom: 4 }]}>
-              {user.testMode ? 'Test Account' : 'Developer Testing'}
+              Developer Testing
             </Text>
             <Text style={{ color: '#9A3412', fontSize: 11, lineHeight: 16, marginBottom: 10 }}>
               Switch roles to test each view. Role and academic test settings are stored only on this device.
@@ -318,30 +325,22 @@ export default function ProfileScreen({
               <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={[styles.cardTitle, { color: tp }]}>Developer Mode</Text>
                 <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
-                  {alwaysOnTestAccount
-                    ? 'Always active for this development test account.'
-                    : 'Enable local role, student profile, and campus-time simulation for testing.'}
+                  Enable local role, student profile, and campus-time simulation for testing.
                 </Text>
               </View>
-              {alwaysOnTestAccount ? (
-                <View style={{ minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#DCFCE7' }}>
-                  <Text style={{ color: '#166534', fontSize: 11, fontWeight: '800' }}>ALWAYS ON</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: developerModeEnabled }}
-                  onPress={() => setDeveloperModeEnabled(!developerModeEnabled)}
-                  style={{
-                    minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                    alignItems: 'center',
-                    backgroundColor: developerModeEnabled ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
-                  }}>
-                  <Text style={{ color: developerModeEnabled ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
-                    {developerModeEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{ checked: developerModeEnabled }}
+                onPress={() => setDeveloperModeEnabled(!developerModeEnabled)}
+                style={{
+                  minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: developerModeEnabled ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
+                }}>
+                <Text style={{ color: developerModeEnabled ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
+                  {developerModeEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
             </View>
             {developerModeEnabled && (
               <Text style={{ color: muted, fontSize: 10, marginTop: 2 }}>

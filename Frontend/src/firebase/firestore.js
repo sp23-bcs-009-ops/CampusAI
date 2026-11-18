@@ -66,22 +66,20 @@ export async function authSignIn(email, password) {
   return d;
 }
 
-// Development-only test session; Firebase Anonymous Auth avoids requiring a real email.
-export async function authAnonymousSignIn() {
-  const r = await fetch(`${AUTH_BASE}:signUp?key=${API_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ returnSecureToken: true }),
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error.message);
-  setAuthToken(d.idToken, d.refreshToken);
-  return d;
-}
-
 export async function authSendVerification(idToken) {
   const r = await fetch(`${AUTH_BASE}:sendOobCode?key=${API_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ requestType: 'VERIFY_EMAIL', idToken }),
+  });
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message);
+  return d;
+}
+
+export async function authSendPasswordReset(email) {
+  const r = await fetch(`${AUTH_BASE}:sendOobCode?key=${API_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
   });
   const d = await r.json();
   if (d.error) throw new Error(d.error.message);
@@ -137,13 +135,21 @@ function deserialise(fields) {
   return out;
 }
 
-export async function fsGet(path) {
+export async function fsGet(path, { throwOnError = false, allowNotFound = false } = {}) {
   try {
     const r = await fetch(`${FS_BASE}/${path}`, { headers: authHeaders() });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      if (throwOnError && !(allowNotFound && r.status === 404)) {
+        throw new Error(await firestoreErrorMessage(r));
+      }
+      return null;
+    }
     const d = await r.json();
     return deserialise(d.fields || {});
-  } catch { return null; }
+  } catch (error) {
+    if (throwOnError) throw error;
+    return null;
+  }
 }
 
 export async function fsSet(path, data) {

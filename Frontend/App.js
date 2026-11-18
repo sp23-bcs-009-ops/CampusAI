@@ -14,6 +14,7 @@ import {
   getNotificationSettings,
   refreshAuthToken,
   saveNotificationSettings,
+  saveUserProfile,
   authGetUser,
 } from './src/firebase/firestore';
 
@@ -246,10 +247,14 @@ export default function App() {
     persistAuthToken();
     setScreen('main');
   }
-  function handleUpdate(u, { persistNotificationPreferences = true } = {}) {
+  function handleUpdate(u, { persistNotificationPreferences = true, persistProfile = true } = {}) {
     const cleanUser = withoutLegacyClassMuteSettings(u);
     setUser(cleanUser);
     AsyncStorage.setItem('campusai_user', JSON.stringify(cleanUser)).catch(() => { });
+    if (persistProfile && cleanUser.email && cleanUser.uid && cleanUser.type !== 'guest') {
+      saveUserProfile(cleanUser.email, cleanUser)
+        .catch(error => console.warn('Failed to sync user profile.', error));
+    }
     if (persistNotificationPreferences && cleanUser.uid) {
       saveNotificationSettings(cleanUser.uid, notificationProfileSettings(cleanUser))
         .catch(error => console.warn('Failed to sync notification preferences.', error));
@@ -353,10 +358,14 @@ export default function App() {
   );
 
   // ── Notifs ────────────────────────────────────────────────────────────────
-  const { arrangedClasses, cancelledSlots, loadAllReservations } = useNotifs(adjustedLectureSlots);
+  const classNotifications = useNotifs(
+    adjustedLectureSlots,
+    screen === 'main' && !!user && user.type !== 'guest',
+  );
+  const { arrangedClasses, cancelledSlots, loadAllReservations } = classNotifications;
   useEffect(() => {
-    if (screen === 'main') loadAllReservations();
-  }, [screen, loadAllReservations]);
+    if (screen === 'main' && user && user.type !== 'guest') loadAllReservations();
+  }, [screen, user?.uid, user?.type, loadAllReservations]);
 
   // Clock tick every minute
   useEffect(() => {
@@ -570,6 +579,7 @@ export default function App() {
             lectureSlots={adjustedLectureSlots} subjectsMap={subjectsMap} timetables={adjustedTimetables}
             teacherAssignments={teacherAssignments}
             schedule={schedule}
+            {...classNotifications}
           />
         );
       case 'chat':
@@ -637,7 +647,11 @@ export default function App() {
             </View>
           </View>
 
-          <View style={[styles.workspace, { backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' }]}>
+          <View style={[
+            styles.workspace,
+            Platform.OS !== 'web' && styles.nativeWorkspace,
+            { backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' },
+          ]}>
             {isDesktopWeb && (
               <View style={[styles.sidebar, { backgroundColor: dark ? '#10102D' : '#FFFFFF', borderRightColor: dark ? '#2A1C6B' : '#E2E0F5' }]}>
                 <Text style={[styles.sidebarHeading, { color: dark ? '#8B7BB8' : '#81799F' }]}>WORKSPACE</Text>
@@ -765,6 +779,7 @@ export default function App() {
 const styles = StyleSheet.create({
   app: { flex: 1 },
   workspace: { flex: 1, flexDirection: 'row' },
+  nativeWorkspace: { flexDirection: 'column' },
   desktopTopBar: { minHeight: 62, paddingHorizontal: 24, paddingVertical: 10 },
   sidebar: { width: 244, borderRightWidth: 1, paddingHorizontal: 12, paddingTop: 22, paddingBottom: 10 },
   sidebarHeading: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2, paddingHorizontal: 12, marginBottom: 12 },

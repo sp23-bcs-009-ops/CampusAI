@@ -699,6 +699,7 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
 // ─── Timetable Modal ──────────────────────────────────────────────────────
 function TimetableModal({ dark, timetable, mode = 'regular', semester, department, user, lectureSlotsByDepartmentSemester, ttMeta, onClose }) {
   const isStaff = user?.type === 'staff';
+  const isTeacher = user?.type === 'teacher';
   const isExamView = mode === 'exam';
   const [staffDept, setStaffDept] = useState('');
   const [staffSemester, setStaffSemester] = useState('');
@@ -709,8 +710,12 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   const bdr = dark ? '#2A1C6B' : '#E2E0F5';
   const bg = dark ? '#0A0A1E' : '#F5F4FF';
   const cardBg = dark ? '#1A1A3E' : '#FFFFFF';
-  const targetSemester = isStaff ? (staffSemester ? Number(staffSemester) : null) : Number(semester || 7);
-  const targetDepartment = isStaff ? staffDept : String(department || '').toLowerCase();
+  const targetSemester = isStaff
+    ? (staffSemester ? Number(staffSemester) : null)
+    : isTeacher ? null : Number(semester || 7);
+  const targetDepartment = isStaff
+    ? staffDept
+    : isTeacher ? '' : String(department || '').toLowerCase();
   const allSlots = Object.values(timetable || {}).flat().filter(slot => slot.day);
   const examDepartments = [...new Set(allSlots.map(slot => String(slot.dept || slot._dept || '').toLowerCase()).filter(Boolean))].sort();
   const examSemesters = [...new Set(allSlots
@@ -732,7 +737,9 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   const matchingSlots = staffHasTarget ? baseSlots.filter(slot =>
     (!selectedTeacher || String(slot.prof || slot.teacher || '') === selectedTeacher)
     // Exam entries carry no per-user `mine` flag; dept/semester already scoped them.
-    && (isExamView || !personalTimetableViewer || Boolean(slot.isMine ?? slot.mine))
+    && (isTeacher
+      ? Boolean(slot.isMine ?? slot.mine)
+      : isExamView || !personalTimetableViewer || Boolean(slot.isMine ?? slot.mine))
   ) : [];
   const departmentSemesterKey = targetDepartment && targetSemester ? `${targetDepartment}_sem${targetSemester}` : '';
   const slots = lectureSlotsByDepartmentSemester?.[departmentSemesterKey] || {};
@@ -797,7 +804,11 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
         {/* Header */}
         <View style={[styles.ttHeader, { backgroundColor: C.purple }]}>
           <View>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>{isStaff ? (isExamView ? 'STAFF EXAM VIEW' : 'STAFF TIMETABLE VIEW') : `BS ${String(targetDepartment).toUpperCase()} · SEM ${targetSemester}${isExamView ? ' · EXAM' : ''}`}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>{isStaff
+              ? (isExamView ? 'STAFF EXAM VIEW' : 'STAFF TIMETABLE VIEW')
+              : isTeacher
+                ? `TEACHER VIEW · ALL CLASSES${isExamView ? ' · EXAM' : ''}`
+                : `BS ${String(targetDepartment).toUpperCase()} · SEM ${targetSemester}${isExamView ? ' · EXAM' : ''}`}</Text>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>{isExamView ? 'Exam Timetable' : 'Weekly Timetable'}</Text>
             {ttMeta?.effectiveDate && (
               <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>w.e.f {ttMeta.effectiveDate}</Text>

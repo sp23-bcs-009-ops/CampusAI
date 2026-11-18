@@ -5,7 +5,7 @@ import {
 import DateTimeField from '../DateTimeField';
 import { C } from '../../constants/colors';
 import { EVENT_CATS } from '../../constants/config';
-import { PostSubmit, PrimaryButton, SectionLabel } from '../ui';
+import { PostModalShell, PostSubmit, PrimaryButton, SectionLabel } from '../ui';
 import { pickPostImage } from '../../utils/postImages';
 
 export default function EventPostModal({ visible, dark, onClose, onPost, editEvent }) {
