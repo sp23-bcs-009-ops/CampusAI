@@ -79,7 +79,7 @@ def test_regular_conversion_document_ids_are_unchanged():
 
 
 def test_full_exam_pipeline_prefixes_every_group_document():
-    source_pdf = Path(__file__).parents[1] / "timetable.pdf"
+    source_pdf = Path(__file__).parent / "fixtures" / "timetable.pdf"
     _, documents, _, _ = local.process_rule_based_pdf(str(source_pdf), schedule_mode="exam")
     assert documents
     for key, document in documents.items():

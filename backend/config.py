@@ -54,11 +54,6 @@ class Settings:
         o.strip() for o in _env("CORS_ORIGINS", "*").split(",") if o.strip()
     ]
 
-    # ── Knowledge freshness ──────────────────────────────────────
-    # Auto re-scrape COMSATS website on startup if cache is older than this
-    # many days (0 disables the check).
-    knowledge_max_age_days: int = int(_env("KNOWLEDGE_MAX_AGE_DAYS", "7"))
-
     # ── Memory ───────────────────────────────────────────────────
     memory_window: int = int(_env("MEMORY_WINDOW", "8"))  # messages kept per session
 

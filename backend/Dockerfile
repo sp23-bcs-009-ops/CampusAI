@@ -24,10 +24,9 @@ FROM dependencies AS backend
 
 # Copy application code + data
 COPY config.py llm.py pipeline.py timetable_service.py API.py \
-     normalizer.py comsats_scraper.py pdf_to_json.py timetable_upload.py text_pdf_layout.py \
+     normalizer.py comsats_scraper.py timetable_upload.py text_pdf_layout.py \
      rule_based_text_pdf.py exam_timetable_upload.py teacher_matching.py university_data.py knowledge_pack.py identity.py \
      catalog.py user_memory.py presentation.py topic_guard.py ./
-COPY timetable_flat.json timetable.pdf ./
 COPY knowledge_pack ./knowledge_pack
 
 # Writable data folder (docker-compose mounts a volume here)

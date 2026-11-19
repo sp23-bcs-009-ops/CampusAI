@@ -7,7 +7,6 @@ import os
 
 import pytest
 
-os.environ.setdefault("KNOWLEDGE_MAX_AGE_DAYS", "0")
 os.environ.setdefault("CAMPUS_AI_API_KEY", "")
 
 TEST_TIMETABLE = {

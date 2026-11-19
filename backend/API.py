@@ -6,7 +6,6 @@ Architecture (refactored):
     pipeline.py          ← LangChain intent router + per-session memory
     timetable_service.py ← deterministic timetable/teacher/room logic
     university_data.py   ← Firestore university records
-    rag_store.py         ← unused by live chatbot answers
     llm.py               ← LLM provider (Groq, optional OpenAI)
     config.py            ← env-driven settings
 
@@ -188,13 +187,6 @@ def health():
     return {
         "status": "ok",
         "llm": llm_info(),
-        "rag": {
-            "chroma": "unused",
-            "document_retrieval": "knowledge_pack",
-            "collection": "unused",
-            "documents": 0,
-            "embedder": "none",
-        },
         "knowledge_pack": _knowledge_pack_health(),
         "auth_enabled": bool(settings.api_key),
         "rate_limit": settings.rate_limit,

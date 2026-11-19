@@ -107,7 +107,7 @@ def test_teacher_missing_from_list_is_kept_from_pdf_and_converter_succeeds(tmp_p
 
 
 def test_unparseable_cell_is_pending_edit_without_invalidating_timetable():
-    source_pdf = Path(__file__).parents[1] / "timetable.pdf"
+    source_pdf = Path(__file__).parent / "fixtures" / "timetable.pdf"
 
     timetable, documents, warnings, _ = local.process_rule_based_pdf(str(source_pdf))
 

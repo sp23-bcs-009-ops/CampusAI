@@ -22,7 +22,7 @@ def test_health_is_local():
     body = response.json()
     assert body["status"] == "ok"
     assert "llm" in body
-    assert "rag" in body
+    assert "knowledge_pack" in body
 
 
 def test_ask_returns_answer_and_intent(monkeypatch):
