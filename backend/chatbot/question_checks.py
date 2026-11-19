@@ -44,7 +44,8 @@ def _record_kind(question: str) -> str | None:
     ):
         return "lostfound"
     if any(phrase in q for phrase in (
-        "event", "seminar", "workshop", "campus news", "university news", "uni news"
+        "event", "seminar", "workshop", "campus news", "university news", "uni news",
+        "happening", "going on", "activities", "activity"
     )):
         return "events"
     if any(phrase in q for phrase in ("notification", "class notice", "cancel class", "cancelled class")):
@@ -280,7 +281,7 @@ def _is_hello(question: str) -> bool:
     return _is_social(question) and not plain.startswith(("thank", "ok thank", "okay thank", "how are you"))
 
 
-_NOW_PATTERN = re.compile(r"\b(now|right now|currently|ongoing|current)\b")
+_NOW_PATTERN = re.compile(r"\b(now|right now|currently|ongoing|current|abhi|abi)\b")
 
 _CLASS_WORDS = re.compile(r"\b(class|classes|lecture|lectures|period)\b")
 

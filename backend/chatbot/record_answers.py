@@ -4,8 +4,9 @@ Moved out of answer_pipeline.py; the code is unchanged.
 """
 from __future__ import annotations
 
-from typing import Any
+import datetime
 import re
+from typing import Any
 
 from timetable import timetable_lookup as tt
 
@@ -80,35 +81,79 @@ def _short(value: Any, limit: int = 140) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def _event_lines(records: list[dict]) -> str:
+def _event_line(item: dict) -> str:
+    title = str(item.get("title") or "Untitled event").strip()
+    parts = [_readable_date(item.get("date"))]
+    start, end = str(item.get("time") or "").strip(), str(item.get("endTime") or "").strip()
+    parts.append(f"{start}–{end}" if start and end else start)
+    parts.append(str(item.get("venue") or "").strip())
+    detail = ", ".join(p for p in parts if p)
+    text = f"• {title}" + (f" — {detail}" if detail else "")
+    if item.get("when") == "today":
+        text += " (today)"
+    if item.get("body"):
+        text += f"\n  {_short(item['body'])}"
+    return text
+
+
+def _asked_event_range(question: str):
+    """(label, first day, last day) for "today", "tomorrow", "this week", "next week", "this weekend"."""
+    q = (question or "").lower()
+    today = tt.campus_now().date()
+    monday = today - datetime.timedelta(days=today.weekday())
+    if re.search(r"\b(today|aaj)\b", q):
+        return "today", today, today
+    if re.search(r"\b(tomorrow|kal)\b", q):
+        day = today + datetime.timedelta(days=1)
+        return "tomorrow", day, day
+    if "next week" in q:
+        return "next week", monday + datetime.timedelta(days=7), monday + datetime.timedelta(days=13)
+    if "weekend" in q:
+        return "this weekend", monday + datetime.timedelta(days=5), monday + datetime.timedelta(days=6)
+    if "this week" in q:
+        return "this week", today, monday + datetime.timedelta(days=6)
+    return None
+
+
+def _event_day(item: dict):
+    try:
+        return datetime.date.fromisoformat(str(item.get("date") or "")[:10])
+    except ValueError:
+        return None
+
+
+def _event_lines(records: list[dict], question: str = "") -> str:
     records = _annotate_event_dates(records)
+    asked = _asked_event_range(question)
+    if asked:
+        label, first, last = asked
+        upcoming_all = sorted(
+            (item for item in records if item.get("when") in {"today", "upcoming"}),
+            key=lambda item: str(item.get("date") or ""),
+        )
+        in_range = [item for item in upcoming_all if _event_day(item) and first <= _event_day(item) <= last]
+        span = _readable_date(first.isoformat()) if first == last else (
+            f"{_readable_date(first.isoformat())} – {_readable_date(last.isoformat())}")
+        if in_range:
+            return f"🎉 Events {label} ({span})\n" + "\n".join(_event_line(item) for item in in_range[:8])
+        text = f"There are no events {label} ({span})."
+        later = [item for item in upcoming_all if _event_day(item) and _event_day(item) > last]
+        if later:
+            text += " The next upcoming ones:\n" + "\n".join(_event_line(item) for item in later[:3])
+        return text
     upcoming = sorted(
         (item for item in records if item.get("when") in {"today", "upcoming"}),
         key=lambda item: str(item.get("date") or ""),
     )
 
-    def line(item: dict) -> str:
-        title = str(item.get("title") or "Untitled event").strip()
-        parts = [_readable_date(item.get("date"))]
-        start, end = str(item.get("time") or "").strip(), str(item.get("endTime") or "").strip()
-        parts.append(f"{start}–{end}" if start and end else start)
-        parts.append(str(item.get("venue") or "").strip())
-        detail = ", ".join(p for p in parts if p)
-        text = f"• {title}" + (f" — {detail}" if detail else "")
-        if item.get("when") == "today":
-            text += " (today)"
-        if item.get("body"):
-            text += f"\n  {_short(item['body'])}"
-        return text
-
     if upcoming:
-        return "🎉 Upcoming events\n" + "\n".join(line(item) for item in upcoming[:8])
+        return "🎉 Upcoming events\n" + "\n".join(_event_line(item) for item in upcoming[:8])
     past = sorted(records, key=lambda item: str(item.get("date") or ""), reverse=True)[:3]
     if not past:
         return "There are no published events right now."
     return (
         "There are no upcoming events right now. The most recent ones were:\n"
-        + "\n".join(line(item) for item in past)
+        + "\n".join(_event_line(item) for item in past)
     )
 
 
@@ -128,6 +173,7 @@ _LOSTFOUND_STOP = {
     "lost", "found", "item", "items", "any", "anyone", "someone", "somebody", "has", "have",
     "did", "does", "find", "my", "a", "an", "the", "is", "are", "there", "and", "or", "of",
     "show", "me", "list", "what", "please", "in", "on", "at", "i", "it", "today", "campus",
+    "one", "ones", "anybody", "seen", "can", "you", "know", "if", "where", "who", "help", "lose",
 }
 
 _ITEM_SYNONYMS = {
@@ -142,16 +188,20 @@ _ITEM_SYNONYMS = {
 
 def _lostfound_lines(question: str, records: list[dict]) -> str:
     open_items = [item for item in records if str(item.get("resolved")).lower() not in {"true", "1"}]
-    terms = [w for w in re.findall(r"[a-z]+", question.lower()) if w not in _LOSTFOUND_STOP and len(w) > 2]
+    terms = [w for w in re.findall(r"[a-z]+", question.lower()) if w not in _LOSTFOUND_STOP and len(w) >= 2]
     shown = open_items
     if terms:
         wanted = set()
         for term in terms:
             wanted |= _ITEM_SYNONYMS.get(term, {term})
 
+        groups = [_ITEM_SYNONYMS.get(term, {term}) for term in terms]
+        needed = len(groups) if len(groups) <= 2 else 2  # "id card": both words; longer: any two
+
         def matches(item: dict) -> bool:
             text = " ".join(str(item.get(k) or "") for k in ("title", "body", "location", "cat")).lower()
-            return any(re.search(rf"\b{re.escape(word)}", text) for word in wanted)
+            hits = sum(1 for group in groups if any(re.search(rf"\b{re.escape(word)}", text) for word in group))
+            return hits >= needed
 
         shown = [item for item in open_items if matches(item)]
         if not shown:

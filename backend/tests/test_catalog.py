@@ -119,5 +119,5 @@ def test_department_counts_and_subject_teachers():
     )
     assert "CS:" in counts["answer"]
     assert "SE:" in counts["answer"]
-    assert "Test Subject is listed with Dr. Test" in taught["answer"]
-    assert "complete teaching-load" in taught["answer"].lower()
+    assert "Test Subject is taught by Dr. Test" in taught["answer"]
+    assert "teaching-load" not in taught["answer"].lower()  # no robotic caveat

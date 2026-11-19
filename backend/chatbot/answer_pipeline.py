@@ -189,7 +189,7 @@ def handle_records(rq: RoutedQuestion, memory: SessionMemory) -> Any:
     if not records:
         return f"There are no published {label} right now."
     if rq.intent == "events":
-        return _event_lines(records)
+        return _event_lines(records, rq.question)
     if rq.intent == "announcements":
         return _announcement_lines(records)
     if rq.intent == "lostfound":
@@ -317,6 +317,29 @@ def _with_ai_wording(question: str, result: Dict[str, Any], memory: SessionMemor
     return {"answer": reply + (f"\n\n{note}" if note else ""), "intent": result["intent"]}
 
 
+_TEACHER_REF = re.compile(r"\b(he|him|his|she|her|this teacher|that teacher|the teacher|same teacher)\b")
+
+
+def _teacher_followup(question: str, memory: SessionMemory) -> Any:
+    """'Which courses is he teaching?' after a teacher answer is about that teacher.
+
+    This runs before the count/list and student answers, which would otherwise read
+    "how many subjects" as the student's own class.
+    """
+    if not memory.last_teacher or not _TEACHER_REF.search(question.lower()) or _class_key_from_text(question):
+        return None
+    try:
+        named = tt.detect_teacher(question)
+    except UniversityDataUnavailable:
+        return None
+    if named and named != memory.last_teacher:
+        return None  # a different teacher is named; the router handles it
+    slot_filter, time_label = tt._make_time_filter(question)
+    rq = RoutedQuestion("teacher", question, teacher=memory.last_teacher,
+                        slot_filter=slot_filter, time_label=time_label)
+    return handle_teacher(rq, memory)
+
+
 def _answer_from_code(question: str, session_id: str = "default", identity: dict | None = None) -> Dict[str, Any]:
     university_part = _university_portion(question)
     if university_part:
@@ -331,6 +354,10 @@ def _answer_from_code(question: str, session_id: str = "default", identity: dict
     if personal is not None:
         memory.add_turn(question, personal)
         return {"answer": personal, "intent": "general"}
+    teacher_followup = _teacher_followup(question, memory)
+    if teacher_followup is not None:
+        memory.add_turn(question, teacher_followup)
+        return {"answer": teacher_followup, "intent": "teacher"}
     natural = None
     try:
         if identity and identity.get("type") == "student":

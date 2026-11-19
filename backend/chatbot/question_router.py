@@ -96,7 +96,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
         return RoutedQuestion("exams", question, cls=exam_cls)
     if _PRIVATE_RECORDS.search(q_lower):
         return RoutedQuestion("private_records", question)
-    if _FACILITY_WORDS.search(q_lower) and not tt.detect_class(question):
+    if _FACILITY_WORDS.search(q_lower) and not tt.detect_class(question) and not _record_kind(question):
         return RoutedQuestion("comsats_info", question)
     if _clearly_unrelated(question):
         return RoutedQuestion("off_topic", question)
@@ -133,9 +133,23 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
     if teacher and not _teacher_name_actually_mentioned(question, teacher):
         teacher = None
 
+    if (
+        room and str(room).strip().lower() in {"lab", "labs"} and not re.search(r"\blab\s*\d", q_lower)
+        and identity and identity.get("type") == "student"
+        and re.search(r"\b(my|i|me|meri|mera|mere)\b", q_lower)
+    ):
+        room = None
+
+    # A last name alone ("sir rizwan"): one match is that teacher; several means asking which one.
+    name_matches = [] if cls or room else tt.teacher_word_matches(question)
+    if len(name_matches) == 1:
+        teacher = name_matches[0]
+    elif len(name_matches) > 1 and (not teacher or teacher in name_matches):
+        teacher = None
+
     # "When is he free on Monday?" / "his classes" → the teacher from the last answer.
     if (
-        not teacher and not cls and not room and memory.last_teacher
+        not teacher and not cls and not room and not name_matches and memory.last_teacher
         and re.search(r"\b(he|him|his|she|her)\b", q_lower)
     ):
         teacher = memory.last_teacher
@@ -259,7 +273,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
         base["teacher"] = teacher
         return RoutedQuestion("teacher", question, **base)
 
-    if tt.is_teacher_intent(question, teacher):
+    if tt.is_teacher_intent(question, teacher) or len(name_matches) > 1:
         return RoutedQuestion("teacher", question, **base)
 
     if any(p in q_lower for p in ROOMS_ALL_PHRASES):

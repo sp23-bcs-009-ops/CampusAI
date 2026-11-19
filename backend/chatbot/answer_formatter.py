@@ -184,7 +184,8 @@ def card_to_text(card: dict) -> str:
         if not rooms:
             lines = ["No rooms are free at that time in the current timetable."]
         else:
-            lines = ["📍 Free rooms"]
+            days = card.get("days") or []
+            lines = [f"📍 Free rooms on {days[0]}" if len(days) == 1 else "📍 Free rooms"]
             for day, day_rooms in _by_day(rooms).items():
                 if len(card.get("days") or []) > 1:
                     lines.append("")
@@ -224,9 +225,12 @@ def card_to_text(card: dict) -> str:
         if not subjects:
             lines.append(f"👨‍🏫 {name} has no classes in the current timetable.")
         else:
-            lines.append(f"👨‍🏫 {name} teaches:")
-            lines += [f"• {s['subject']} — {_join(s.get('classes'))}" if _join(s.get("classes")) else f"• {s['subject']}"
-                      for s in subjects]
+            count = len(subjects)
+            lines.append(f"👨‍🏫 {name} teaches {count} {'course' if count == 1 else 'courses'}:")
+            for s in subjects:
+                part = f" ({s['part']})" if s.get("part") else ""
+                batches = _join(s.get("classes"))
+                lines.append(f"• {s['subject']}{part}" + (f" — {batches}" if batches else ""))
             lines.append("Teaching days: " + ", ".join(card.get("days") or []))
             today_rows = card.get("today_classes") or []
             if today_rows:

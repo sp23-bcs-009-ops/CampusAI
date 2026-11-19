@@ -68,7 +68,7 @@ def test_guests_always_get_text():
     card = {"type": "rooms_free", "days": ["Wednesday"],
             "rooms": [{"room": "CR 2", "day": "Wednesday", "free": ["10:00-11:30"]}]}
     shown = present(card, None)
-    assert shown == "📍 Free rooms\n• CR 2: 10:00–11:30"
+    assert shown == "📍 Free rooms on Wednesday\n• CR 2: 10:00–11:30"
 
     schedule = {"type": "schedule", "class": "BS(CS)-I", "day": "Monday", "classes": [
         {"subject": "PF", "teacher": "Umar Zia", "room": "LT8", "time": "10:00-11:30", "day": "Monday"}]}
@@ -249,7 +249,7 @@ def test_student_questions_without_my_use_their_class(monday_at):
     """Second live student round, 17 Nov 2026: these used to ask "which class?"."""
     monday_at(7 * 60)
     assert ask("do I have class on saturday", STUDENT, session="s1")["answer"] == \
-        "BS(CS)-I has no classes on Saturday."
+        "You have no classes on Saturday."
     assert ask("how many classes do I have on monday", STUDENT, session="s2")["answer"] == \
         "You have 1 class on Monday: Test Subject."
     assert ask("when is my first class tomorrow", STUDENT, session="s3")["answer"] == \

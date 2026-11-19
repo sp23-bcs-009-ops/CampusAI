@@ -186,6 +186,17 @@ def _subject_from_text(question: str, catalog: Catalog, memory) -> str | None:
     for subject in sorted(catalog.subjects, key=len, reverse=True):
         if subject.lower() in q:
             return subject
+    # Short names: "OOP" → Object Oriented Programming. Only when exactly one subject fits.
+    words = set(re.findall(r"[a-z]+", q))
+    by_initials = [
+        subject for subject in catalog.subjects
+        if "lab" not in subject.lower()
+        and len(initials := "".join(w[0] for w in re.findall(r"[a-z]+", subject.lower())
+                                    if w not in {"and", "of", "the", "to", "for", "in"})) >= 2
+        and initials in words
+    ]
+    if len(by_initials) == 1:
+        return by_initials[0]
     remembered = list(getattr(memory, "last_subjects", None) or [])
     remembered += list(getattr(memory, "last_catalog_items", None) or [])
     if remembered:
@@ -304,9 +315,6 @@ def answer_catalog(question: str, memory, teacher: str | None = None) -> tuple[s
                 f"{subject} has no teacher name in the published timetable.",
                 catalog,
             ), "catalog"
-        return _qualify(
-            f"{subject} is listed with {', '.join(names)} in the published timetable. "
-            "That is the current timetable assignment, not a complete teaching-load record.",
-            catalog,
-        ), "catalog"
+        teachers = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" and {names[-1]}"
+        return f"{subject} is taught by {teachers} in the current timetable.", "catalog"
     return None

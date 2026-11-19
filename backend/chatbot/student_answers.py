@@ -21,6 +21,7 @@ from chatbot.question_checks import (
     _notification_target,
     _NOW_PATTERN,
     _WHO_TEACHES,
+    RoutedQuestion,
 )
 from chatbot.record_answers import _readable_date
 from chatbot.exam_answers import exam_answer
@@ -390,16 +391,50 @@ def _student_events(question: str) -> str | None:
     return " ".join(lines)
 
 
+_MY_SUBJECT_TEACHER = re.compile(r"\bmy ([a-z0-9 .&()-]+?) (teacher|sir|madam|maam|instructor)\b")
+
+
+def _student_named_teacher(question: str, identity: dict, memory: SessionMemory):
+    """'who is my OOP teacher?' → the teacher of that subject in the student's own class.
+    With "free / now / where / busy" it checks that teacher's slots instead."""
+    match = _MY_SUBJECT_TEACHER.search((question or "").lower())
+    key = _own_class_key(identity) if match else None
+    if not key:
+        return None
+    rows = _own_subject_rows(match.group(1), key)
+    teachers = list(dict.fromkeys(str(r.get("teacher") or "").strip() for r in rows if r.get("teacher")))
+    if not teachers:
+        return None
+    subject = _display_base(str(rows[0].get("subject") or match.group(1)))
+    if len(teachers) > 1:
+        return f"Your {subject} has more than one teacher: {', '.join(teachers)}. Which one do you mean?", "teacher"
+    teacher = teachers[0]
+    memory.last_teacher = teacher
+    if re.search(r"\b(free|now|where|busy|available|abhi)\b", question.lower()):
+        from chatbot.timetable_answers import handle_teacher
+
+        # "is my DS teacher free now?" → "is Mehreen Wahab free now?" ("teacher" would read as "teach").
+        asked = _MY_SUBJECT_TEACHER.sub(teacher, question.lower())
+        slot_filter, time_label = tt._make_time_filter(asked)
+        rq = RoutedQuestion("teacher", asked, teacher=teacher, slot_filter=slot_filter, time_label=time_label)
+        return handle_teacher(rq, memory), "teacher"
+    return f"Your {subject} teacher is {teacher}.", "teacher"
+
+
 def _student_natural(question: str, identity: dict, memory: SessionMemory) -> tuple[str, str] | None:
     """Student-only answers from the verified profile. None keeps the normal route."""
     q_lower = question.lower()
-    personal = bool(re.search(r"\b(my|i|i'm|im|me)\b", q_lower))
+    personal = bool(re.search(r"\b(my|i|i'm|im|me|meri|mera|mere|mujhe)\b", q_lower))
     asks_other_class = _class_key_from_text(question) is not None
     if _is_exam_question(question) and not asks_other_class:
         from user_login.firebase_login_check import class_key_from_profile
         return exam_answer(class_key_from_profile(identity), question, mine=True), "exams"
-    if personal and not asks_other_class and (
-        _FREE_TIME_PATTERN.search(q_lower) or (_NOW_PATTERN.search(q_lower) and _CLASS_WORDS.search(q_lower))
+    now_class = bool(_NOW_PATTERN.search(q_lower) and _CLASS_WORDS.search(q_lower))
+    named_teacher = _student_named_teacher(question, identity, memory)
+    if named_teacher is not None:
+        return named_teacher
+    if not asks_other_class and (
+        (personal and _FREE_TIME_PATTERN.search(q_lower)) or now_class
     ):
         from user_login.firebase_login_check import class_key_from_profile
         key = class_key_from_profile(identity)

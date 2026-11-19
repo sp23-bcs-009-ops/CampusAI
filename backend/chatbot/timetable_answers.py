@@ -23,29 +23,82 @@ from chatbot.question_checks import (
 
 _ABOUT_TEACHER = re.compile(
     # Not a bare "about": "what about Tuesday?" is a follow-up for another day.
-    r"\b(who is|who's|whos|tell me about|know about|info(rmation)? (about|on|of)|details (of|about)|introduce)\b"
+    r"\b(who is|who's|whos|tell me about|know about|do you know|talking about|asking about|"
+    r"info(rmation)? (about|on|of)|"
+    r"details (of|about)|introduce|about (this|that|the) teacher|"
+    r"how many (subjects|courses)|which (subjects|courses|batch|batches|classes|semesters?)|"
+    r"what (subjects|courses)|(subjects|courses) (does|is|he|she)|is (he|she) teaching|"
+    r"teaching (right )?now|currently teaching|teaches what|what (does|do) [a-z. ]+ teach)\b"
 )
-_NAME_ONLY_WORDS = {"sir", "madam", "maam", "dr", "mr", "ms", "miss", "prof", "professor", "teacher", "the", "is", "who"}
+_NAME_ONLY_WORDS = {
+    "sir", "madam", "maam", "dr", "mr", "ms", "miss", "prof", "professor", "teacher", "the", "is", "who",
+    "hello", "hi", "hey", "salam", "please",
+}
 
 
 def _asks_about_teacher(q_lower: str, teacher: str) -> bool:
-    """'who is kamran', 'tell me about Sir Kamran', or just the name: the person, not one day's slots."""
+    """'who is kamran', 'which courses does he teach', or just the name: the person, not one day's slots."""
+    if tt.detect_day(q_lower) and not re.search(r"\b(who is|tell me about|do you know)\b", q_lower):
+        return False  # "which classes does he have on Monday?" is about that day
     if _ABOUT_TEACHER.search(q_lower):
         return True
-    name_words = {w for w in re.findall(r"[a-z]+", teacher.lower())}
-    left = [w for w in re.findall(r"[a-z]+", q_lower) if w not in name_words and w not in _NAME_ONLY_WORDS]
-    # Only partial name words left ("kamran" for "Kamran Ali") still means just the name.
-    return all(any(n.startswith(w) or w.startswith(n) for n in name_words) for w in left)
+    from rapidfuzz import fuzz
+
+    name_words = [w for w in re.findall(r"[a-z]+", teacher.lower()) if len(w) > 2]
+    left = [w for w in re.findall(r"[a-z]+", q_lower) if w not in _NAME_ONLY_WORDS]
+    # Only name words left, typos allowed ("shazad rizwan" for Shahzad Rizwan): just the name.
+    return bool(left) and all(
+        any(n.startswith(w) or fuzz.ratio(w, n) >= 75 for n in name_words) for w in left
+    )
+
+
+def _course_name(subject: str) -> str:
+    """'Parallel and Distributed Computing (Lab)' → 'Parallel and Distributed Computing'."""
+    return re.sub(r"\s*\(\s*lab\s*\)\s*$", "", subject, flags=re.I).strip()
+
+
+def _is_abbreviation(short: str, name: str) -> bool:
+    """'DBS' for 'Database Systems', 'PF' for 'Programming Fundamentals': letters in order, same start."""
+    short = re.sub(r"[^a-z]", "", short.lower())
+    name = re.sub(r"[^a-z]", "", name.lower())
+    if not short or len(short) >= len(name) or short[0] != name[0]:
+        return False
+    position = 0
+    for letter in short:
+        position = name.find(letter, position)
+        if position < 0:
+            return False
+        position += 1
+    return True
+
+
+def _merge_abbreviated_labs(courses: dict) -> None:
+    """Fold a lab-only course written as an abbreviation into its theory course for the same class."""
+    for lab_name in [n for n, c in courses.items() if c["lab"] and not c["theory"]]:
+        lab = courses[lab_name]
+        for name, course in courses.items():
+            if (name != lab_name and course["theory"] and _is_abbreviation(lab_name, name)
+                    and set(lab["classes"]) & set(course["classes"])):
+                course["lab"] = True
+                course["classes"] += [c for c in lab["classes"] if c not in course["classes"]]
+                del courses[lab_name]
+                break
 
 
 def teacher_profile(teacher: str, question: str) -> dict:
-    """Everything the timetable says about one teacher: subjects, classes, days, today, next class."""
+    """Everything the timetable says about one teacher: courses (theory + lab together), batches,
+    teaching days, today's classes and the next class."""
     rows = tt.get_teacher_classes(teacher, tt.WEEK_DAYS)
-    subjects: dict[str, list[str]] = {}
+    courses: dict[str, dict] = {}
     for row in rows:
-        classes = subjects.setdefault(str(row.get("subject") or "").strip(), [])
-        if row.get("class") and row["class"] not in classes:
-            classes.append(row["class"])
+        subject = str(row.get("subject") or "").strip()
+        if not subject:
+            continue
+        course = courses.setdefault(_course_name(subject), {"classes": [], "lab": False, "theory": False})
+        course["lab" if subject != _course_name(subject) else "theory"] = True
+        if row.get("class") and row["class"] not in course["classes"]:
+            course["classes"].append(row["class"])
+    _merge_abbreviated_labs(courses)
     today = tt.today_name()
     q_words = set(re.findall(r"[a-z]+", question.lower()))
     full_name_typed = all(w in q_words for w in re.findall(r"[a-z]+", teacher.lower()) if len(w) > 2)
@@ -53,7 +106,11 @@ def teacher_profile(teacher: str, question: str) -> dict:
         "type": "teacher_profile",
         "teacher": teacher,
         "confirm_name": not full_name_typed,
-        "subjects": [{"subject": s, "classes": c} for s, c in subjects.items() if s],
+        "subjects": [
+            {"subject": name, "classes": info["classes"],
+             "part": "theory and lab" if info["lab"] and info["theory"] else ("lab" if info["lab"] else "")}
+            for name, info in courses.items()
+        ],
         "days": [d for d in tt.WEEK_DAYS if any(r["day"] == d for r in rows)],
         "today": today,
         "today_classes": [r for r in rows if r["day"] == today],
@@ -85,7 +142,7 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         return subject_answer
 
     if teacher is None:
-        ambiguous = tt.teacher_name_candidates(question)
+        ambiguous = tt.teacher_name_candidates(question) or tt.teacher_word_matches(question)
         if len(ambiguous) > 1:
             return {
                 "type": "teacher_ambiguous",
@@ -152,9 +209,13 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         upcoming = sorted(
             (slot for slot in busy if tt._slot_start_minutes(slot) > minute), key=tt._slot_start_minutes
         )
-        text = f"Yes, {teacher} has no class right now."
+        yes = "Yes, " if re.match(r"\s*(is|are|can|does)\b", q_lower) else ""
+        text = f"{yes}{teacher} has no class right now."
         if upcoming:
-            text += f" Their next class today is at {upcoming[0].replace('-', '–')}."
+            nxt = busy[upcoming[0]][0]
+            room = str(nxt.get("room") or "").strip()
+            text += (f" Their next class today is {nxt.get('subject')} for {nxt.get('class')} at "
+                     f"{upcoming[0].replace('-', '–')}" + (f" in {room}." if room and room != "N/A" else "."))
         else:
             text += " They have no more classes today."
         return text
@@ -416,7 +477,11 @@ def handle_timetable(rq: RoutedQuestion, memory: SessionMemory) -> Any:
     suffix = f" {time_label}" if time_label else ""
     if wants_lab:
         return f"I could not find a lab meeting for {cls} on {display_day}{suffix} in the current timetable."
-    return f"{cls} has no classes on {display_day}{suffix}."
+    when = " (tomorrow)" if re.search(r"\b(tomorrow|kal)\b", question.lower()) else (
+        " (today)" if re.search(r"\b(today|aaj)\b", question.lower()) else "")
+    if re.search(r"\b(my|i|me|mine|mera|meri|mere)\b", question.lower()):
+        return f"You have no classes on {display_day}{when}{suffix}."
+    return f"{cls} has no classes on {display_day}{when}{suffix}."
 
 
 def _next_class_sentence(info: dict | None, lead: str) -> str:

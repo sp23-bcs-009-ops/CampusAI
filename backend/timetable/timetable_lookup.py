@@ -199,10 +199,8 @@ def today_name():
     return DAY_MAP.get(full, "Monday")
 
 
-def detect_teacher(question):
-    """Detects a specific teacher name from the user question, handling typos and partial names."""
-    ensure_timetable()
-    from rapidfuzz import fuzz
+def _clean_name_query(question: str) -> str:
+    """The question with titles, days and everyday words removed, leaving the name words."""
     import re
 
     q_lower = question.lower()
@@ -221,13 +219,26 @@ def detect_teacher(question):
         r'current|tell|me|professor|prof|visiting|teach|teaches|teaching|'
         r'have|has|class|classes|between|and|at|am|pm|afternoon|morning|'
         r'evening|week|whole|show|does|o|clock|oclock|period|meeting|busy|'
-        r'slot|slots|lecture|lab|room|building|floor)\b'
+        r'slot|slots|lecture|lab|room|building|floor|'
+        # Conversation around a name: "hello do you know rizwan", "i am talking about sir rizwan"
+        r'hello|hi|hey|salam|do|you|know|about|talking|asking|want|this|that|teacher|i|he|his|him|'
+        r'she|her|subjects?|courses?|batch|batches|how|many|which|right|are|it|to|in|info|details)\b'
     )
     clean_q = re.sub(noise_pattern, ' ', q_lower).strip()
     clean_q = re.sub(r'\b\d+\b', ' ', clean_q)       # strip bare numbers (2, 11, 3)
     clean_q = re.sub(r'[^\w\s]', ' ', clean_q)
     clean_q = re.sub(r'\s+', ' ', clean_q).strip()
 
+    return clean_q
+
+
+def detect_teacher(question):
+    """Detects a specific teacher name from the user question, handling typos and partial names."""
+    ensure_timetable()
+    from rapidfuzz import fuzz
+    import re
+
+    clean_q = _clean_name_query(question)
     if not clean_q or len(clean_q) < 3:
         return None
 
@@ -290,6 +301,23 @@ def detect_teacher(question):
         return best_match
 
     return None
+
+
+def teacher_word_matches(question: str) -> list:
+    """Teachers whose name contains every name word typed (typos allowed): "rizwan" → all Rizwans."""
+    ensure_timetable()
+    from rapidfuzz import fuzz
+
+    words = [w for w in _clean_name_query(question).split() if len(w) >= 3]
+    if not words:
+        return []
+    matches = []
+    for teacher in sorted(ALL_TEACHERS):
+        name = re.sub(r"\b(sir|maam|miss|mr|ms|dr|professor|prof|visiting)\b", " ", teacher.lower())
+        name_words = [w for w in re.findall(r"[a-z]+", name) if len(w) >= 3]
+        if name_words and all(max(fuzz.ratio(w, n) for n in name_words) >= 85 for w in words):
+            matches.append(teacher)
+    return matches
 
 
 def teacher_name_candidates(question):
@@ -548,10 +576,10 @@ def detect_day(question):
     if found_days:
         return found_days
 
-    if "today" in q_lower:
+    if re.search(r"\b(today|aaj)\b", q_lower):
         return [today_name()]
 
-    if "tomorrow" in q_lower:
+    if re.search(r"\b(tomorrow|kal)\b", q_lower):
         days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         idx = days_order.index(today_name())
         # If today is Saturday or Sunday, tomorrow's classes are on Monday
