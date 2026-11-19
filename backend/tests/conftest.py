@@ -96,3 +96,12 @@ def _offline_timetable(request, monkeypatch):
     monkeypatch.setattr(university_data, "schedule_mode", lambda: "regular")
     monkeypatch.setattr(university_data, "active_mode", lambda: "regular")
     tt._rebuild_indexes(TEST_TIMETABLE)
+
+    # Chat and unclear questions go to the model. Tests run it "unavailable" so the
+    # fixed fallback text answers; a test can patch _run_general_chain to fake a reply.
+    from chatbot import answer_pipeline
+
+    def _model_unavailable(*_args, **_kwargs):
+        raise RuntimeError("model disabled in tests")
+
+    monkeypatch.setattr(answer_pipeline, "_run_general_chain", _model_unavailable)

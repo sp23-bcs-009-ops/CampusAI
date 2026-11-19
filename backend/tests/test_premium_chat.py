@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 import api_server as API
 from timetable import timetable_lookup as tt
 from data_sources import firebase_reader as university_data
-from chatbot.answer_pipeline import EXAM_NOT_PUBLISHED, STUDY_HELP, answer_question
+from chatbot.answer_pipeline import EXAM_NOT_PUBLISHED, answer_question
 from chatbot.answer_formatter import plain_text, present
 
 STUDENT = {"type": "student", "dept": "cs", "semester": 1, "fullName": "Ali Khan",
@@ -129,10 +129,15 @@ def test_exam_questions_no_longer_look_for_a_teacher():
     assert ask("When are BCS-1 midterm exams?")["answer"] == EXAM_NOT_PUBLISHED
 
 
-def test_study_stress_gets_a_kind_reply_not_a_teacher_list():
-    answer = ask("I'm stressed about exams, any tips?")
-    assert answer["answer"] == STUDY_HELP
-    assert "teacher" not in answer["answer"].lower()
+def test_study_stress_gets_a_kind_model_reply_not_a_teacher_list(monkeypatch):
+    monkeypatch.setattr(
+        "chatbot.answer_pipeline._run_general_chain",
+        lambda question, memory: "That sounds stressful. Take it one paper at a time.",
+    )
+    for question in ("I'm stressed about exams, any tips?", "I missed my paper yesterday, what should I do?"):
+        answer = ask(question, session=question[:10])
+        assert answer["intent"] == "general", question
+        assert answer["answer"] == "That sounds stressful. Take it one paper at a time."
 
 
 def test_misspelled_days(monkeypatch):
@@ -349,3 +354,22 @@ def test_records_are_readable(monkeypatch):
     assert events.startswith("There are no upcoming events right now.")
     assert "Football — 30 April 2026, 01:43–07:43, Ground" in events
     assert "cat:" not in events and "when:" not in events
+
+
+def test_phase1_routes_feelings_policy_and_departments_correctly(monkeypatch):
+    monkeypatch.setattr(
+        "chatbot.answer_pipeline._run_general_chain",
+        lambda question, memory: "model reply",
+    )
+    from chatbot.answer_pipeline import PRIVATE_RECORDS, SessionMemory, route
+
+    # A day word alone is not a timetable request, for guests and students.
+    assert ask("I feel sad today")["answer"] == "model reply"
+    assert ask("I feel sad today", STUDENT, session="sad")["answer"] == "model reply"
+    # Policy questions are not the user's private records; "my CGPA" still is.
+    assert ask("what is the minimum CGPA to avoid probation?")["answer"] != PRIVATE_RECORDS
+    assert ask("what is my CGPA?")["answer"] == PRIVATE_RECORDS
+    # A list of departments is website information, not the teacher directory.
+    assert route("which departments are there at Attock campus?", SessionMemory()).intent == "comsats_info"
+    # Greetings get the model's friendly reply.
+    assert ask("hi", session="hi-guest")["answer"] == "model reply"
