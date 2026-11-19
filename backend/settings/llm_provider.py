@@ -53,11 +53,6 @@ def get_chat_model(temperature: float = 0.2, max_tokens: int = 1024):
     )
 
 
-def get_fallback_chat_model(temperature: float = 0.2, max_tokens: int = 300):
-    """pipeline.py still asks for a fallback. Groq has no second local model."""
-    return None
-
-
 def llm_info() -> dict:
     if settings.llm_provider == "openai":
         return {"provider": "openai", "model": settings.openai_model}
