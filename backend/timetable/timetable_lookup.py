@@ -625,18 +625,6 @@ def timetable_question(text):
     return has_keyword or has_class
 
 
-def is_off_topic(text: str) -> bool:
-    """True when the question asks for something unrelated to the campus.
-
-    The chatbot router uses topic_guard directly; this stays for older callers.
-    """
-    from chatbot.off_topic_guard import has_campus_anchor, is_creative_request, off_topic_category
-
-    if is_creative_request(text):
-        return True
-    return off_topic_category(text) is not None and not has_campus_anchor(text)
-
-
 def get_schedule(cls, day, slot_filter=None):
     """Returns structured JSON array of classes for a given day"""
     ensure_timetable()

@@ -52,12 +52,10 @@ def test_student_who_am_i_is_not_the_bot_introduction():
 
 def test_unrelated_refusal_is_polite_and_does_not_name_the_pack(monkeypatch):
     monkeypatch.setattr("chatbot.answer_pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
-    dog = answer_question("What is the difference between a dog and a cat?", session_id="engine-dog")
     france = answer_question("What is the capital of France?", session_id="engine-france")
-    assert dog["intent"] == "off_topic"
     assert france["intent"] == "off_topic"
-    assert dog["answer"] == REFUSAL
-    assert "knowledge pack" not in dog["answer"].lower()
+    assert france["answer"] == REFUSAL
+    assert "knowledge pack" not in france["answer"].lower()
     assert "paris" not in france["answer"].lower()
 
 

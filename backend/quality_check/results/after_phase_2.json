@@ -1,0 +1,306 @@
+[
+  {
+    "group": "Timetable from Firebase",
+    "question": "Show me the timetable for BCS-1 on Monday",
+    "expect": "answer",
+    "intent": "timetable",
+    "seconds": 0.1,
+    "answer": "📅 BS(CS)-I — Monday\n• 11:30–13:15  AoIaCT (Lab) — Muhammad Fawad, Lab\n• 13:35–15:00  PF(Lab) — Bukhari Maryam, Lab2\n• 15:00–16:30  PF(Lab) — Bukhari Maryam, Lab2"
+  },
+  {
+    "group": "Timetable from Firebase",
+    "question": "what about Tuesday?",
+    "expect": "answer",
+    "intent": "timetable",
+    "seconds": 0.0,
+    "answer": "📅 BS(CS)-I — Tuesday\n• 10:00–11:30  Programming Fundamentals — Umar Zia, LT8\n• 11:30–13:15  Fundamentals of Psychology — Hamid Masood, LH 4"
+  },
+  {
+    "group": "Timetable from Firebase",
+    "question": "who teaches the first class?",
+    "expect": "answer",
+    "intent": "timetable",
+    "seconds": 0.0,
+    "answer": "The first class is Programming Fundamentals at 10:00-11:30 with Umar Zia in LT8."
+  },
+  {
+    "group": "Timetable from Firebase",
+    "question": "bcs 3 classes tomorrow",
+    "expect": "answer",
+    "intent": "timetable",
+    "seconds": 0.0,
+    "answer": "BS(CS)-III has no classes on Saturday."
+  },
+  {
+    "group": "Teachers and rooms from Firebase",
+    "question": "Is Muhammad Fawad free on Monday?",
+    "expect": "answer",
+    "intent": "teacher",
+    "seconds": 0.0,
+    "answer": "👨‍🏫 Muhammad Fawad\nMonday\nFree: 08:30–10:00, 10:00–11:30, 13:35–15:00, 15:00–16:30\nBusy: 11:30–13:15 (BS(CS)-I, Lab, AoIaCT (Lab))"
+  },
+  {
+    "group": "Teachers and rooms from Firebase",
+    "question": "which teachers are free right now?",
+    "expect": "answer",
+    "intent": "teacher",
+    "seconds": 0.0,
+    "answer": "There is no class slot running right now, so every teacher is free of timetabled classes."
+  },
+  {
+    "group": "Teachers and rooms from Firebase",
+    "question": "which rooms are free on friday morning?",
+    "expect": "answer",
+    "intent": "rooms_all",
+    "seconds": 0.0,
+    "answer": "📍 Free rooms\n• APL: 11:30–13:15\n• CR 1: 08:30–10:00\n• CR 2: 08:30–10:00, 10:00–11:30\n• CR 5: 11:30–13:15\n• EE C.Lab: 11:30–13:15\n• EL: 08:30–10:00, 10:00–11:30, 11:30–13:15\n• LH 2: 08:30–10:00\n• LH 5: 08:30–10:00\n• LH 6: 10:00–11:30, 11:30–13:15\n• LT1: 10:00–11:30\n• LT3: 10:00–11:30\n• LT4: 10:00–11:30\n• LT5: 10:00–11:30\n• LT6: 08:30–10:00, 10:00–11:30\n• LT9: 08:30–10:00, 10:00–11:30\n• Lab1: 08:30–10:00, 11:30–13:15\n• Lab2: 10:00–11:30\n• Lab3: 11:30–13:15\n• Lab4: 11:30–13:15\n• Lab5: 11:30–13:15"
+  },
+  {
+    "group": "Teachers and rooms from Firebase",
+    "question": "Is LT 4 free now?",
+    "expect": "answer",
+    "intent": "room",
+    "seconds": 0.0,
+    "answer": "Yes, LT4 is free right now. It's next booked at 08:30–10:00."
+  },
+  {
+    "group": "Teachers and rooms from Firebase",
+    "question": "Where is the location of CR 2?",
+    "expect": "answer",
+    "intent": "room",
+    "seconds": 0.0,
+    "answer": "📍 Room CR 2\n\nMonday\nFree: 08:30–10:00\nBusy: 10:00–11:30 (BS(AI)-V, Atta Ullah, Statistics and Probability Theory); 11:30–13:15 (BS(CS)-III, Atta Ur Rehman, Fundamentals of Digital Logic Design); 13:35–15:00 (BS(SE)-III, Ali Imran, Calculus and Analytic Geometry); 15:00–16:30 (BS(BA)-I, BS(BA)-II, BS(BDA)-II, Tasneem Fiza, Tasneem Fiza, Tasneem Fiza, Functional English, Functional English, Functional English)\n\nTuesday\nFree: 08:30–10:00, 15:00–16:30\nBusy: 10:00–11:30 (BS(SE)-VIII, Ehtisham Mujeeb, Human Resource Management); 11:30–13:15 (BS(CS)-II, Narmeen Khalid, Introduction to Entrepreneurship); 13:35–15:00 (BS(BA)-VI, Ehtisham Mujeeb, NPD)\n\nWednesday\nFree: 10:00–11:30, 15:00–16:30\nBusy: 08:30–10:00 (BS(CS)-VI, Atta Ullah, Statistics and Probability Theory); 11:30–13:15 (BS(AI)-I, Sameen Khalid, Civics and Community Engagement); 13:35–15:00 (BS(BA)-II, BS(BA)-VII, BS(BDA)-III, Midrar Ullah, Midrar Ullah, Midrar Ullah, Introduction to Management, Introduction to Management, Introduction to Management)\n\nThursday\nFree: 10:00–11:30, 15:00–16:30\nBusy: 08:30–10:00 (BS(English)-V, BS(English)-VI, BS(English)-VII, M Imran Malik, M Imran Malik, M Imran Malik, Current Affairs, Current Affairs, Current Affairs); 11:30–13:15 (BS(SE)-I, Hamid Masood, Fundamentals of Psychology); 13:35–15:00 (BS(A&F)-II, BS(BA)-II, BS(BA)-IV, Noor Muhammad, Noor Muhammad, Noor Muhammad, Tools of Quantitative Reasoning, Tools of Quantitative Reasoning, Tools of Quantitative Reasoning)\n\nFriday\nFree: 08:30–10:00, 10:00–11:30, 13:35–15:00, 15:00–16:30\nBusy: 11:30–13:15 (BS(SE)-II, Muhammad Zeb, Applied Physics)\n\nSaturday\nFree: 08:30–10:00, 10:00–11:30, 11:30–13:15, 13:35–15:00, 15:00–16:30"
+  },
+  {
+    "group": "Events, notices, lost and found from Firebase",
+    "question": "any events this week?",
+    "expect": "answer",
+    "intent": "events",
+    "seconds": 2.4,
+    "answer": "🎉 Upcoming events\n• SHOGRAN Nature's Paradise — 28 November 2026, COMSATS University Islamabad\n  You must enjoy!\n• Visio Spark 2026 — 28 November 2026, CUI Wah Campus\n  VisioSpark 2026 | Applications Open 📅 Date: Saturday, 28 November 2026 📍 Venue: COMSATS Wah Campus ✅ Registration Fee: FREE 🚌 Transport: Wi…"
+  },
+  {
+    "group": "Events, notices, lost and found from Firebase",
+    "question": "are there any emergency announcements?",
+    "expect": "answer",
+    "intent": "announcements",
+    "seconds": 0.6,
+    "answer": "⚠️ Short circuit in Lab CS3 (critical) — 15 September 2026\nNo one except the relevant authority should enter or get near to the Lab CS3. We will further send disseminate this to the whole university."
+  },
+  {
+    "group": "Events, notices, lost and found from Firebase",
+    "question": "I lost my calculator, has anyone found one?",
+    "expect": "answer",
+    "intent": "lostfound",
+    "seconds": 3.4,
+    "answer": "I couldn't find any open lost-and-found posts matching \"calculator one\". You can post it in the app's Lost & Found section so others can reply."
+  },
+  {
+    "group": "Events, notices, lost and found from Firebase",
+    "question": "show notifications for BCS-1",
+    "expect": "answer",
+    "intent": "notifications",
+    "seconds": 0.6,
+    "answer": "There are no published class notifications right now."
+  },
+  {
+    "group": "Exams",
+    "question": "when are the BCS-1 exams?",
+    "expect": "answer",
+    "intent": "exams",
+    "seconds": 0.0,
+    "answer": "The exam datesheet isn't published in CampusAI yet, because the timetable is in Regular Mode. Exam dates will show here as soon as staff switch on Exam Mode. Until then, check your class notifications or ask your department office."
+  },
+  {
+    "group": "Exams",
+    "question": "I missed my paper yesterday, what should I do?",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 1.1,
+    "answer": "I’m sorry you missed the paper. Please reach out to your department office as soon as possible—they’ll guide you on any make-up options or next steps. You can also check the campus website for any updates."
+  },
+  {
+    "group": "Exams",
+    "question": "I am stressed about midterms",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 1.5,
+    "answer": "I’m sorry you’re feeling stressed—midterms can be overwhelming. Try breaking your revision into short, focused sessions with regular breaks, and keep a simple checklist of topics to cover each day. If the pressure feels too much, consider visiting the student counseling service or your department office for extra support. Good luck, you’ve got this!"
+  },
+  {
+    "group": "Campus website information",
+    "question": "How do I apply for admission?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 1.3,
+    "answer": "To apply for admission at the Attock campus, start by contacting the admissions office.\n\n• Reach out to Mr. Muhammad Javed, In-Charge Admissions and Student Affairs.\n• Call 057-9049159 or 0315-5504184 for inquiries.\n• Email ic_admissions@cuiatk.edu.pk to request application forms and details.\n• Verify these details on the current Attock admission page before proceeding.\n• Follow the instructions given by the admissions office to submit your application.\n\nSource: https://ww2.comsats.edu.pk/ro/Prospectus/GR_Prospectus/Graduate-Guide-2025-26.pdf"
+  },
+  {
+    "group": "Campus website information",
+    "question": "how can I get into COMSATS Attock?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 1.7,
+    "answer": "To apply for admission at COMSATS Attock, begin by contacting the campus.\n\n• Review the Undergraduate Prospectus 2025-26 for program details and entry requirements.\n• Call the campus office at 057-9049300 (Dr. Moazzam Maqsood, Head of Computer Science) for admission information.\n• Call the Computer Science department at 057-9316330 for specific program queries.\n• Request the application form and required documents via the phone numbers provided.\n• Submit the completed form and documents according to the prospectus guidelines.\n\nSource: https://ww2.comsats.edu.pk/ro/Prospectus/UG_Prospectus/Undergraduate-Prospectus-2025-26.pdf"
+  },
+  {
+    "group": "Campus website information",
+    "question": "which departments are there at Attock campus?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 1.0,
+    "answer": "Attock campus hosts several academic departments.\n\n• Computer Science\n• Electrical Engineering\n• Computer Engineering\n• Management Sciences\n• Mathematics\n\nSource: https://ww2.comsats.edu.pk/ms_atk/default.aspx"
+  },
+  {
+    "group": "Campus website information",
+    "question": "who is the rector?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 5.9,
+    "answer": "The university’s official page lists the Rector as Prof. Dr. Raheel Qamar, T.I.\n\n• He holds the top executive role for COMSATS University Islamabad.\n• If you were looking for the Chancellor or another senior office, those are separate positions and are listed on the university’s governance pages.\n\nSource: https://islamabad.comsats.edu.pk/Website/rector-comsats"
+  },
+  {
+    "group": "Campus website information",
+    "question": "Where is the library?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 0.0,
+    "answer": "I don't have that in the current campus website records yet. For the latest details, check the official campus website (https://attock.comsats.edu.pk/) or ask the relevant office on campus."
+  },
+  {
+    "group": "Campus website information",
+    "question": "what are the bus timings?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 13.8,
+    "answer": "I’m sorry, the current campus records don’t include bus timing details.\n\n• Visit the official Attock campus website for the latest transport information.\n• You can also call the campus administration office to ask about bus schedules.\n\nSource: https://attock.comsats.edu.pk/"
+  },
+  {
+    "group": "Campus website information",
+    "question": "what is the fee structure?",
+    "expect": "answer",
+    "intent": "comsats_info",
+    "seconds": 0.0,
+    "answer": "I don't have that in the current campus website records yet. For the latest details, check the official campus website (https://attock.comsats.edu.pk/) or ask the relevant office on campus."
+  },
+  {
+    "group": "Campus website information",
+    "question": "what is the minimum CGPA to avoid probation?",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 8.9,
+    "answer": "I’m not sure of the exact CGPA threshold for probation. Please check the latest academic regulations on the campus website (https://attock.comsats.edu.pk/) or ask your department office for the current requirement."
+  },
+  {
+    "group": "Conversation and feelings",
+    "question": "hi",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 1.1,
+    "answer": "Hey there! How can I help you with anything about life or studies at COMSATS Attock today?"
+  },
+  {
+    "group": "Conversation and feelings",
+    "question": "who are you?",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 0.0,
+    "answer": "I'm CampusAI, the COMSATS Attock campus assistant. I can help with timetables, teachers, rooms, events, announcements, and official campus information."
+  },
+  {
+    "group": "Conversation and feelings",
+    "question": "can you help me with something?",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 0.0,
+    "answer": "Here's what I can do:\n• Class timetables: \"BCS-1 Monday\"\n• Teachers: \"is Aamir Ali free today?\"\n• Rooms: \"free rooms at 10am Wednesday\"\n• Events, announcements, lost & found\n• COMSATS information: admissions, departments, programs\nSign in with your university account to get your own timetable."
+  },
+  {
+    "group": "Conversation and feelings",
+    "question": "I feel sad today",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 9.1,
+    "answer": "I’m really sorry you’re feeling down. It might help to talk to someone you trust—maybe a friend, a faculty member, or the counseling services listed on the campus website. You can also check the student support page on https://attock.comsats.edu.pk/ for resources and contact details. Take care of yourself."
+  },
+  {
+    "group": "Conversation and feelings",
+    "question": "thanks a lot",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 4.9,
+    "answer": "You’re welcome! Let me know if there’s anything else I can help you with around COMSATS Attock."
+  },
+  {
+    "group": "Personal questions as a guest",
+    "question": "what are my classes today?",
+    "expect": "answer",
+    "intent": "general",
+    "seconds": 0.0,
+    "answer": "Guest mode does not have a personal timetable. Sign in with your university account to see your own classes, or tell me the class, for example BCS-1."
+  },
+  {
+    "group": "Personal questions as a guest",
+    "question": "what is my CGPA?",
+    "expect": "answer",
+    "intent": "private_records",
+    "seconds": 0.0,
+    "answer": "I can't see personal academic records such as GPA, attendance, marks, roll number or fee challans. Please check the CUI student portal (CU Online) or ask your department office."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "tell me a movie name",
+    "expect": "block",
+    "intent": "off_topic",
+    "seconds": 0.0,
+    "answer": "I can only help with COMSATS Attock campus questions, such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "who won the cricket world cup?",
+    "expect": "block",
+    "intent": "off_topic",
+    "seconds": 0.0,
+    "answer": "I can only help with COMSATS Attock campus questions, such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "what is the capital of France?",
+    "expect": "block",
+    "intent": "off_topic",
+    "seconds": 0.0,
+    "answer": "I can only help with COMSATS Attock campus questions, such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "tell me a joke",
+    "expect": "block",
+    "intent": "off_topic",
+    "seconds": 0.0,
+    "answer": "I can only help with COMSATS Attock campus questions, such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "write python code to reverse a string",
+    "expect": "block",
+    "intent": "general",
+    "seconds": 0.6,
+    "answer": "I’m sorry, but I can only help with COMSATS Attock campus questions such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "what's the weather today?",
+    "expect": "block",
+    "intent": "off_topic",
+    "seconds": 0.0,
+    "answer": "I can only help with COMSATS Attock campus questions, such as timetables, teachers, rooms, events, and official campus information."
+  },
+  {
+    "group": "Unrelated topics",
+    "question": "Show me the timetable for BCS-1 and tell me a movie name",
+    "expect": "answer",
+    "intent": "timetable",
+    "seconds": 0.0,
+    "answer": "📅 BS(CS)-I — the Whole Week\n\nMonday\n• 11:30–13:15  AoIaCT (Lab) — Muhammad Fawad, Lab\n• 13:35–15:00  PF(Lab) — Bukhari Maryam, Lab2\n• 15:00–16:30  PF(Lab) — Bukhari Maryam, Lab2\n\nTuesday\n• 10:00–11:30  Programming Fundamentals — Umar Zia, LT8\n• 11:30–13:15  Fundamentals of Psychology — Hamid Masood, LH 4\n\nWednesday\n• 08:30–10:00  AoIaCT (Lab) — Muhammad Fawad, Lab\n• 08:30–10:00  PF(Lab) — Bukhari Maryam, Lab2\n• 11:30–13:15  Civics and Community Engagement — Sanober Tariq, CR 3\n• 13:35–15:00  Pre Calculus I — Muhammad Sulaiman, LT1\n• 15:00–16:30  Programming Fundamentals — Umar Zia, LT9\n\nThursday\n• 08:30–10:00  Pre Calculus I — Muhammad Sulaiman, LT1\n• 11:30–13:15  Application of Information and Communcation Technologies — Muhammad Fawad, LT9\n• 15:00–16:30  Functional English — Tasneem Fiza, LT8\n\nFriday\n• 08:30–10:00  Functional English — Tasneem Fiza, CR 4\n• 11:30–13:15  AoIaCT (Lab) — Muhammad Fawad, Lab\n• 13:35–15:00  AoIaCT (Lab) — Muhammad Fawad, Lab\n• 13:35–15:00  PF(Lab) — Bukhari Maryam, Lab4\n\nI can only answer the university part of that. I won't answer the unrelated part."
+  }
+]

@@ -35,6 +35,7 @@ CAMPUS_QUESTIONS = [
     "what can you do?",
 ]
 
+# Obvious unrelated requests: code blocks them instantly, without the model.
 UNRELATED_QUESTIONS = [
     "tell me a movie name",
     "suggest a good movie to watch",
@@ -45,18 +46,22 @@ UNRELATED_QUESTIONS = [
     "write a poem about love",
     "what is the capital of France?",
     "who is the prime minister of Pakistan?",
+    "let's play a game",
+    "latest netflix series",
+    "tell me a story",
+]
+
+# Less obvious unrelated requests: the model reads them and declines (hybrid guard).
+MODEL_DECIDES_QUESTIONS = [
     "give me a recipe for biryani",
     "what is the difference between a dog and a cat?",
     "explain quantum physics",
     "write python code to reverse a string",
     "write a program in java to add two numbers",
     "what is the bitcoin price?",
-    "let's play a game",
     "translate hello into French",
     "how can I lose weight?",
     "best phone under 50000",
-    "latest netflix series",
-    "tell me a story",
 ]
 
 
@@ -86,6 +91,17 @@ def test_unrelated_questions_are_blocked_without_the_model(question, model_calls
     assert result["intent"] == "off_topic", question
     assert result["answer"] == REFUSAL
     assert model_calls == []
+
+
+@pytest.mark.parametrize("question", MODEL_DECIDES_QUESTIONS)
+def test_less_obvious_unrelated_questions_go_to_the_model(question, model_calls, monkeypatch):
+    monkeypatch.setattr(
+        pipeline, "_run_general_chain",
+        lambda q, memory: model_calls.append(q) or "I only help with campus matters.",
+    )
+    result = answer_question(question, session_id=f"guard-model-{question[:20]}")
+    assert result["intent"] != "off_topic", question
+    assert model_calls, question
 
 
 def test_mixed_question_answers_only_the_campus_part(model_calls):

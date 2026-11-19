@@ -1,11 +1,14 @@
 """
 Off-topic guard for the chatbot.
 
-A question is blocked only when it ASKS FOR something outside the campus
-(a movie, a song, a recipe, world trivia, homework code...) and nothing in it
-points back to the campus. Single words are not enough: "location" is not a
-cat, a "cricket tournament on campus" is a campus event, and "who teaches
-Physics?" is a timetable question.
+This is the fast, code-only part of a hybrid guard. It blocks only the most
+obvious unrelated requests (jokes and poems, movies and songs, sports scores,
+world trivia, weather) when nothing in the question points back to the campus.
+Everything less obvious (shopping, recipes, homework code...) goes to the model,
+which is told to decline anything unrelated to the university.
+
+Single words are not enough: a "cricket tournament on campus" is a campus
+event, and "who teaches Physics?" is a timetable question.
 
     off_topic_category(question)  → "entertainment", "trivia", ... or None
     has_campus_anchor(question)   → True when the question is about the campus
@@ -16,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-# What the user is asking for. Each pattern describes a request, not a stray word.
+# Obvious unrelated requests. Each pattern describes a request, not a stray word.
 _OFF_TOPIC_INTENTS: dict[str, re.Pattern] = {
     "creative_writing": re.compile(
         r"\b(tell|write|give|share|make|compose|say|recite|sing|create|generate)\b"
@@ -39,33 +42,7 @@ _OFF_TOPIC_INTENTS: dict[str, re.Pattern] = {
         r"(tallest|largest|biggest|longest|smallest) \w+ (in|of) the world|"
         r"how far is the (moon|sun)|black holes?|solar system|planets?)\b"
     ),
-    "news_politics_religion": re.compile(
-        r"\b(politics|political|elections?|government of|prime minister|stock market|"
-        r"bitcoin|crypto(currency)?|dollar rate|gold (price|rate)|share price|religious debate)\b"
-    ),
     "weather": re.compile(r"\b(weather|temperature (today|tomorrow|outside)|forecast|will it rain)\b"),
-    "food_health_lifestyle": re.compile(
-        r"\b(recipes?|how (to|do i) (cook|bake|make (biryani|pizza|tea|coffee))|"
-        r"lose weight|gain weight|diet plan|workout plan|skin ?care|hair ?care|"
-        r"relationship advice|dating|horoscope|zodiac)\b"
-    ),
-    "shopping": re.compile(
-        r"\b(best (phone|mobile|laptop|car|bike|watch|headphones?)|"
-        r"price of (a |an |the )?(phone|mobile|iphone|laptop|car|bike)|buy (a|an) (phone|car|bike|laptop))\b"
-    ),
-    "animals": re.compile(
-        r"\b(cats?|dogs?|animals?|birds?|lions?|tigers?|elephants?|snakes?|horses?|cows?|pets?|wildlife|zoo)\b"
-    ),
-    "homework_tutoring": re.compile(
-        r"\b(write|give|generate|fix|debug)\b(\s+\w+){0,4}?\s+(code|program|script|function|query)\b"
-        r"|\b(python|java|javascript|c\+\+|html|css|sql) code\b"
-        r"|\bsolve (this|the|my)? ?(equation|integral|problem|question|sum)\b"
-        r"|\b(explain|define|teach me|what is|what are|how does)\b.*\b("
-        r"quantum|relativity|photosynthesis|gravity|thermodynamics|calculus|integration|"
-        r"differentiation|recursion|linked lists?|binary trees?|neural networks?|"
-        r"physics|chemistry|biology|mathematics|economics)\b"
-    ),
-    "translation": re.compile(r"\btranslate\b|\bin (french|spanish|german|chinese|arabic)\b"),
 }
 
 # Words that tie a question to the campus. Whole words only, so "classic"
