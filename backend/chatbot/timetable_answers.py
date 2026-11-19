@@ -477,10 +477,10 @@ def handle_timetable(rq: RoutedQuestion, memory: SessionMemory) -> Any:
     suffix = f" {time_label}" if time_label else ""
     if wants_lab:
         return f"I could not find a lab meeting for {cls} on {display_day}{suffix} in the current timetable."
-    when = " (tomorrow)" if re.search(r"\b(tomorrow|kal)\b", question.lower()) else (
-        " (today)" if re.search(r"\b(today|aaj)\b", question.lower()) else "")
+    when = " (tomorrow)" if re.search(r"\btomorrow\b", question.lower()) else (
+        " (today)" if re.search(r"\btoday\b", question.lower()) else "")
     without_codes = re.sub(r"\b[a-z&]+\s*\([^)]*\)\s*-\s*[ivx]+\b|\b[a-z]+\s*-\s*[ivx\d]+\b", " ", question.lower())
-    if re.search(r"\b(my|i|me|mine|mera|meri|mere)\b", without_codes):
+    if re.search(r"\b(my|i|me|mine)\b", without_codes):
         return f"You have no classes on {display_day}{when}{suffix}."
     return f"{cls} has no classes on {display_day}{when}{suffix}."
 

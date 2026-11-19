@@ -29,7 +29,12 @@ from typing import Any, Dict
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from chatbot.ai_prompts import COMSATS_PROMPT, FACTS_PROMPT, GENERAL_PROMPT, RECORD_PROMPT
+from chatbot.ai_prompts import COMSATS_PROMPT, FACTS_PROMPT, GENERAL_PROMPT, RECORD_PROMPT, UNDERSTAND_PROMPT
+from chatbot.question_understanding import parse_understanding, standard_question
+from chatbot.off_topic_guard import has_campus_anchor
+from chatbot.question_router import _clearly_unrelated
+from chatbot.question_checks import _is_exam_question
+from langchain_core.messages import HumanMessage
 from chatbot.answer_formatter import card_to_text
 from chatbot.fact_check import unsupported_details
 from chatbot.campus_question_check import is_comsats_question
@@ -85,9 +90,11 @@ from chatbot.question_router import _university_portion, _with_unrelated_note, r
 @lru_cache(maxsize=8)
 def _build_chain(system_prompt: str):
     """prompt → model → text. Built once per prompt and reused for every question."""
+    # LangChain reads {...} as a placeholder; the prompts' JSON examples must stay literal text.
+    literal_prompt = system_prompt.replace("{", "{{").replace("}", "}}")
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", system_prompt),
+            ("system", literal_prompt),
             MessagesPlaceholder(variable_name="history"),
             ("human", "{input}"),
         ]
@@ -286,8 +293,73 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
     if followup is not None:
         memory.add_turn(question, followup)
         return {"answer": followup, "intent": "followup"}
-    result = _answer_from_code(question, session_id, identity)
+    understood = _understood_answer(question, session_id, identity, memory)
+    result = understood if understood is not None else _answer_from_code(question, session_id, identity)
     return _with_ai_wording(question, result, memory)
+
+
+def _run_understanding_chain(message: str) -> str:
+    """One AI call that says what the message asks for (JSON). No chat history: the context is in the message."""
+    return _run_chain(UNDERSTAND_PROMPT, message, SessionMemory())
+
+
+def _needs_no_understanding(question: str) -> bool:
+    """Greetings, exam questions, obvious off-topic and mixed questions are already answered well
+    without spending an AI call (the provider allows only a few per minute)."""
+    return bool(
+        _is_social(question) or _is_bot_identity(question) or _is_exam_question(question)
+        or _clearly_unrelated(question) or _university_portion(question)
+    )
+
+
+def _understood_answer(question: str, session_id: str, identity: dict | None, memory: SessionMemory):
+    """Phase 7: the AI reads the question, code checks what it found and answers with the tested code.
+
+    Returns None to let the rules answer the original question: when the AI limit is reached,
+    the AI isn't sure, or a name it found isn't in the timetable.
+    """
+    if _needs_no_understanding(question) or not _ai_budget_left():
+        return None
+    who = "a guest"
+    if identity and identity.get("type") == "student":
+        from user_login.firebase_login_check import class_key_from_profile
+
+        who = f"a student of {class_key_from_profile(identity) or 'an unknown class'}"
+    elif identity and identity.get("type") in {"teacher", "staff"}:
+        who = f"a {identity['type']}"
+    context = (
+        f"Today: {tt.campus_now().strftime('%A, %d %B %Y')}. The user is {who}.\n"
+        f"Previous: teacher={memory.last_teacher or ''}; class={memory.last_class or ''}; "
+        f"room={memory.last_room or ''}\n"
+        f"Message: {question}"
+    )
+    try:
+        understood = parse_understanding(_run_understanding_chain(context))
+        tt.ensure_timetable()
+    except Exception:
+        return None
+    if not understood:
+        return None
+    intent = understood["intent"]
+    if intent == "off_topic":
+        if has_campus_anchor(question) or _class_key_from_text(question):
+            return None  # says something about the campus: let the rules decide
+        memory.add_turn(question, REFUSAL)
+        return {"answer": REFUSAL, "intent": "off_topic"}
+    if intent == "followup" and memory.last_facts:
+        reply = _ai_words_for_facts(question, memory.last_facts, memory, reserve=0)
+        if reply:
+            memory.add_turn(question, reply)
+            return {"answer": reply, "intent": "followup"}
+        return None
+    standard = standard_question(understood)
+    print(f"[AI] understood {understood.get('intent')} → {standard!r}")
+    if not standard:
+        return None  # chat, website, private records, or a name we couldn't confirm: the rules answer
+    result = _answer_from_code(standard, session_id, identity)
+    if len(memory.messages) >= 2:
+        memory.messages[-2] = HumanMessage(content=question)  # remember what the student actually typed
+    return result
 
 
 def _followup_from_last_facts(question: str, memory: SessionMemory) -> str | None:

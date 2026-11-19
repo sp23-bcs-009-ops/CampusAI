@@ -107,4 +107,6 @@ def _offline_timetable(request, monkeypatch):
     monkeypatch.setattr(answer_pipeline, "_run_general_chain", _model_unavailable)
     # Data answers are reworded by the model too; tests see the plain facts unless they fake a reply.
     monkeypatch.setattr(answer_pipeline, "_run_facts_chain", _model_unavailable)
+    # Phase 7: the AI reads each question first. Off in tests, so the rules answer; a test can fake it.
+    monkeypatch.setattr(answer_pipeline, "_run_understanding_chain", _model_unavailable)
     answer_pipeline._AI_CALLS.clear()

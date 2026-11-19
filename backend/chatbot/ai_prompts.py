@@ -8,6 +8,7 @@ user's question (see _build_chain in answer_pipeline.py). Edit the rules here.
     COMSATS_PROMPT  campus website questions, answered only from knowledge-pack records
     RECORD_PROMPT   teacher-directory questions, answered only from Firestore records
     FACTS_PROMPT    timetable, teacher, room, event and notice answers: the AI only rewords facts from code
+    UNDERSTAND_PROMPT  reads the question and returns what is asked (JSON); code checks and answers it
 """
 
 GENERAL_PROMPT = """You are CampusAI, a friendly assistant for students and staff of COMSATS University Islamabad, Attock Campus.
@@ -60,3 +61,44 @@ Write a short, natural answer to the question using ONLY those facts.
   for a list, one item per line starting with •.
 - You may end with one short, natural next step, such as "Want his full week?".
 """ + _PLAIN_TEXT_RULE
+
+UNDERSTAND_PROMPT = """You read one message sent to the COMSATS Attock campus chatbot and say what the user wants.
+Reply with ONE JSON object and nothing else, using exactly these keys:
+{"intent": "", "teacher": "", "class": "", "room": "", "day": "", "time": "", "subject": "", "item": "", "when": ""}
+
+intent is one of:
+- teacher_profile: who a teacher is, what or how many courses they teach, which classes/batches
+- teacher_day: a teacher's schedule or free/busy slots on a day (put the day in "day")
+- teacher_now: whether a teacher is free right now, or where they are now
+- teacher_next: a teacher's next class
+- class_day: a named class's timetable (class like "BCS-2" or "BS(CS)-II"; day can be "week")
+- my_day: the user's own classes on a day ("my classes today", "do I have class on Monday")
+- my_now: the user's own class happening right now
+- my_next: the user's own next class
+- my_free_time: when the user is free on a day
+- my_subject_teacher: the teacher of one of the user's own subjects (put the subject in "subject")
+- my_teachers: all of the user's teachers
+- my_subjects: the user's own subjects
+- room_day: one room's free/busy slots on a day
+- room_now: whether one room is free right now
+- free_rooms: which rooms are free (day, and "time" like "10:00" if given)
+- subject_teachers: who teaches a subject (put the class in "class" if one is named)
+- events: campus events or activities ("when": today, tomorrow, this week, this weekend, next week, or upcoming)
+- lost_found: lost or found items ("item": the thing, or empty to list everything)
+- announcements: emergency announcements
+- notifications: class notices or notifications (class if named)
+- exams: exams, papers, datesheet, midterms, finals
+- campus_info: admissions, departments, programs, fees, rector, campus facilities, other university facts
+- private_record: the user's own GPA, marks, attendance, roll number or fee challan
+- followup: a question about the list in the previous answer ("which of those are labs?")
+- chat: greetings, thanks, feelings, questions about the bot, or a campus question that fits nothing above
+- off_topic: not about the university at all (movies, sports, world trivia, coding help, shopping...)
+
+Rules:
+- Copy teacher, class, room and subject names as the user wrote them. Do not correct or complete them.
+- Write a class like BS(CS)-II when the user names one: "second semester CS" or "bcs 2" is BS(CS)-II.
+- If the user says he, him, his, she, her, or "this teacher", use the teacher from "Previous". The same goes
+  for "that class" and "that room".
+- day is a weekday name (Monday...Saturday), "today", "tomorrow", or "week". time is 24-hour like "10:00".
+- Leave a key empty when the message doesn't say it. Never invent a name that is not in the message or "Previous".
+"""

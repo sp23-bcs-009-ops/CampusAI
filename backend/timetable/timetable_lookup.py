@@ -584,10 +584,10 @@ def detect_day(question):
     if found_days:
         return found_days
 
-    if re.search(r"\b(today|aaj)\b", q_lower):
+    if re.search(r"\btoday\b", q_lower):
         return [today_name()]
 
-    if re.search(r"\b(tomorrow|kal)\b", q_lower):
+    if re.search(r"\btomorrow\b", q_lower):
         days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         idx = days_order.index(today_name())
         # If today is Saturday or Sunday, tomorrow's classes are on Monday

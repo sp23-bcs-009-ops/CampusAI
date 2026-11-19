@@ -101,9 +101,9 @@ def _asked_event_range(question: str):
     q = (question or "").lower()
     today = tt.campus_now().date()
     monday = today - datetime.timedelta(days=today.weekday())
-    if re.search(r"\b(today|aaj)\b", q):
+    if re.search(r"\btoday\b", q):
         return "today", today, today
-    if re.search(r"\b(tomorrow|kal)\b", q):
+    if re.search(r"\btomorrow\b", q):
         day = today + datetime.timedelta(days=1)
         return "tomorrow", day, day
     if "next week" in q:

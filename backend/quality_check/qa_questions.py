@@ -63,8 +63,8 @@ BLOCKS = [
     ("student BS(CS)-II, round 3", STUDENT, [
         "do i have any lab today?",
         "who is my OOP teacher?",
-        "kal meri classes",
-        "abhi konsi class hai",
+        "my classes tomorrow",
+        "which class do I have right now?",
         "when does my last class end today?",
         "is my discrete structures teacher free now?",
     ]),

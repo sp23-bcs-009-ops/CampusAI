@@ -281,7 +281,7 @@ def _is_hello(question: str) -> bool:
     return _is_social(question) and not plain.startswith(("thank", "ok thank", "okay thank", "how are you"))
 
 
-_NOW_PATTERN = re.compile(r"\b(now|right now|currently|ongoing|current|abhi|abi)\b")
+_NOW_PATTERN = re.compile(r"\b(now|right now|currently|ongoing|current)\b")
 
 _CLASS_WORDS = re.compile(r"\b(class|classes|lecture|lectures|period)\b")
 

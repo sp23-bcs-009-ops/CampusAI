@@ -81,12 +81,6 @@ def test_he_after_a_teacher_answer_is_that_teacher_not_my_class(identity):
     assert monday["type"] == "teacher_availability" and monday["teacher"] == "Shahzad Rizwan"
 
 
-def test_roman_urdu_days_and_now():
-    today = tt.today_name()
-    assert tt.detect_day("aaj meri classes") == [today]
-    assert tt.detect_day("kal meri classes") != [today]
-
-
 def test_my_subject_teacher_for_a_student():
     student = {"type": "student", "dept": "cs", "semester": 2, "email": "s2@cuiatk.edu.pk"}
     get_session("rz-5").__init__()

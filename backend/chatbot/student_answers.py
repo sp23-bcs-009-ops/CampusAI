@@ -410,7 +410,7 @@ def _student_named_teacher(question: str, identity: dict, memory: SessionMemory)
         return f"Your {subject} has more than one teacher: {', '.join(teachers)}. Which one do you mean?", "teacher"
     teacher = teachers[0]
     memory.last_teacher = teacher
-    if re.search(r"\b(free|now|where|busy|available|abhi)\b", question.lower()):
+    if re.search(r"\b(free|now|where|busy|available)\b", question.lower()):
         from chatbot.timetable_answers import handle_teacher
 
         # "is my DS teacher free now?" → "is Mehreen Wahab free now?" ("teacher" would read as "teach").
@@ -424,7 +424,7 @@ def _student_named_teacher(question: str, identity: dict, memory: SessionMemory)
 def _student_natural(question: str, identity: dict, memory: SessionMemory) -> tuple[str, str] | None:
     """Student-only answers from the verified profile. None keeps the normal route."""
     q_lower = question.lower()
-    personal = bool(re.search(r"\b(my|i|i'm|im|me|meri|mera|mere|mujhe)\b", q_lower))
+    personal = bool(re.search(r"\b(my|i|i'm|im|me)\b", q_lower))
     asks_other_class = _class_key_from_text(question) is not None
     if _is_exam_question(question) and not asks_other_class:
         from user_login.firebase_login_check import class_key_from_profile

@@ -136,7 +136,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
     if (
         room and str(room).strip().lower() in {"lab", "labs"} and not re.search(r"\blab\s*\d", q_lower)
         and identity and identity.get("type") == "student"
-        and re.search(r"\b(my|i|me|meri|mera|mere)\b", q_lower)
+        and re.search(r"\b(my|i|me)\b", q_lower)
     ):
         room = None
 
