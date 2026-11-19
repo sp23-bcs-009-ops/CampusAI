@@ -1308,17 +1308,16 @@ _EXAM_WORDS = re.compile(
     r"\b(exams?|examinations?|midterms?|mids|final exams?|finals|terminals?|sessionals?|"
     r"datesheets?|date sheets?|papers?|invigilation)\b"
 )
-# Only questions that ask WHEN or WHAT the exams are go to the datesheet.
-# "I missed my paper" or "stressed about midterms" go to the model instead.
+# In Exam Mode, only questions that ask WHEN or WHAT the exams are go to the datesheet.
 _EXAM_LOOKUP = re.compile(
     r"\b(when|what time|which day|dates?|datesheets?|date sheets?|schedule|timetable|upcoming|"
     r"next (exam|paper)|show|list|my exams|my papers)\b|\b(exams?|papers?|midterms?|finals) (for|of)\b"
 )
 
 EXAM_NOT_PUBLISHED = (
-    "The exam datesheet isn't published in CampusAI yet, because the timetable is in Regular Mode. "
-    "Exam dates will show here as soon as staff switch on Exam Mode. "
-    "Until then, check your class notifications or ask your department office."
+    "Exams are not being held right now, and the exam schedule hasn't started yet. "
+    "When exams are announced, the datesheet will show here. "
+    "For updates, check your class notifications or ask your department office."
 )
 
 # Only the user's own records ("my GPA"). "Minimum CGPA to avoid probation?" is a policy question.
@@ -1338,8 +1337,13 @@ PRIVATE_RECORDS = (
 
 
 def _is_exam_question(question: str) -> bool:
+    """Any exam question while exams aren't on; in Exam Mode only datesheet questions."""
     q_lower = (question or "").lower()
-    return bool(_EXAM_WORDS.search(q_lower) and _EXAM_LOOKUP.search(q_lower))
+    if not _EXAM_WORDS.search(q_lower):
+        return False
+    if tt.schedule_mode() != "exam":
+        return True  # answered with EXAM_NOT_PUBLISHED
+    return bool(_EXAM_LOOKUP.search(q_lower))
 
 
 def _iso_day(value: str) -> str | None:
@@ -1398,7 +1402,6 @@ _HELP_BY_ROLE = {
         "• Your timetable: \"my classes today\", \"my next class\", \"my class now\"\n"
         "• Free time: \"when am I free today?\"\n"
         "• Subjects and teachers: \"my subjects\", \"who teaches my PF?\"\n"
-        "• Exams: \"my exams\", \"my next paper\"\n"
         "• Notices: \"my notifications\", \"announcements\"\n"
         "• Campus: any class, teacher or room, events, lost & found, and COMSATS information"
     ),
@@ -1476,8 +1479,8 @@ def role_reply(question: str, identity: dict | None) -> str | None:
             if key and key in tt.TIMETABLE:
                 nxt = _next_class_sentence(tt.find_next_class(key), "Your next class is")
                 if nxt:
-                    return f"{hello} {nxt} Ask me about your timetable, free time, exams or campus news."
-            return f"{hello} Ask me about your timetable, free time, exams, teachers, rooms or campus news."
+                    return f"{hello} {nxt} Ask me about your timetable, free time or campus news."
+            return f"{hello} Ask me about your timetable, free time, teachers, rooms or campus news."
         if role == "teacher":
             from user_login.firebase_login_check import teacher_name_from_profile
             teacher = teacher_name_from_profile(identity)

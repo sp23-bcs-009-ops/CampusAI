@@ -131,15 +131,20 @@ def test_exam_questions_no_longer_look_for_a_teacher():
     assert ask("When are BCS-1 midterm exams?")["answer"] == EXAM_NOT_PUBLISHED
 
 
-def test_study_stress_gets_a_kind_model_reply_not_a_teacher_list(monkeypatch):
+def test_any_exam_question_says_exams_are_not_being_held(monkeypatch):
     monkeypatch.setattr(
         "chatbot.answer_pipeline._run_general_chain",
-        lambda question, memory: "That sounds stressful. Take it one paper at a time.",
+        lambda question, memory: "model reply",
     )
-    for question in ("I'm stressed about exams, any tips?", "I missed my paper yesterday, what should I do?"):
-        answer = ask(question, session=question[:10])
-        assert answer["intent"] == "general", question
-        assert answer["answer"] == "That sounds stressful. Take it one paper at a time."
+    for question in (
+        "I'm stressed about exams, any tips?",
+        "I missed my paper yesterday, what should I do?",
+        "when are the midterms?",
+    ):
+        for identity in (None, STUDENT):
+            answer = ask(question, identity, session=question[:10])
+            assert answer["answer"] == EXAM_NOT_PUBLISHED, question
+    assert "not being held" in EXAM_NOT_PUBLISHED
 
 
 def test_misspelled_days(monkeypatch):
@@ -182,7 +187,7 @@ def test_student_sees_their_exams_in_exam_mode(monkeypatch):
 
 @pytest.mark.parametrize("identity, expected", [
     (None, "Sign in with your university account"),
-    (STUDENT, "\"my exams\""),
+    (STUDENT, "\"my next class\""),
     (TEACHER, "Your free slots"),
     (STAFF, "which teachers are free now?"),
 ])
