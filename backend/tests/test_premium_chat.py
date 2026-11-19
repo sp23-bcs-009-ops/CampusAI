@@ -14,7 +14,8 @@ from fastapi.testclient import TestClient
 import api_server as API
 from timetable import timetable_lookup as tt
 from data_sources import firebase_reader as university_data
-from chatbot.answer_pipeline import EXAM_NOT_PUBLISHED, answer_question
+from chatbot.answer_pipeline import answer_question
+from chatbot.fixed_replies import EXAM_NOT_PUBLISHED
 from chatbot.answer_formatter import plain_text, present
 
 STUDENT = {"type": "student", "dept": "cs", "semester": 1, "fullName": "Ali Khan",
@@ -291,7 +292,7 @@ def test_teacher_and_room_free_now_are_yes_or_no(monday_at):
 
 def test_audit_fixes_rooms_free_slots_and_tidy_lists(monday_at):
     """From the 74-question student audit against Firebase, 17 Nov 2026."""
-    from chatbot.answer_pipeline import _combine_lab_names, _merge_slots
+    from chatbot.timetable_answers import _combine_lab_names, _merge_slots
 
     monday_at(9 * 60)
     assert ask("free rooms now", STUDENT, session="a1")["intent"] == "rooms_all"

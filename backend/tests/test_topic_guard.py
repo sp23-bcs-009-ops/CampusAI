@@ -8,7 +8,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from chatbot import answer_pipeline as pipeline
 from data_sources import firebase_reader as university_data
-from chatbot.answer_pipeline import REFUSAL, _UNRELATED_NOTE, answer_question
+from chatbot.answer_pipeline import REFUSAL, answer_question
+from chatbot.fixed_replies import _UNRELATED_NOTE
 
 CAMPUS_QUESTIONS = [
     "Where is the location of CR 2?",
