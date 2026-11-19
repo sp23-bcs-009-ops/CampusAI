@@ -100,3 +100,11 @@ def test_records_are_not_taken_by_library_or_website_routes():
 
     assert route("any found items in the library?", SessionMemory()).intent == "lostfound"
     assert route("what is happening on campus this weekend?", SessionMemory()).intent == "events"
+
+
+def test_a_follow_up_about_he_does_not_ask_do_you_mean_again():
+    get_session("rz-6").__init__()
+    first = ask("sir shazad rizwan", "rz-6")
+    assert first["confirm_name"] is True
+    again = ask("which courses he is teaching", "rz-6")
+    assert again["type"] == "teacher_profile" and again["confirm_name"] is False

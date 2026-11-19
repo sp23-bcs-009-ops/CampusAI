@@ -337,7 +337,10 @@ def _teacher_followup(question: str, memory: SessionMemory) -> Any:
     slot_filter, time_label = tt._make_time_filter(question)
     rq = RoutedQuestion("teacher", question, teacher=memory.last_teacher,
                         slot_filter=slot_filter, time_label=time_label)
-    return handle_teacher(rq, memory)
+    answer = handle_teacher(rq, memory)
+    if isinstance(answer, dict) and answer.get("type") == "teacher_profile":
+        answer["confirm_name"] = False  # we already know who "he" is; don't ask "Do you mean...?" again
+    return answer
 
 
 def _answer_from_code(question: str, session_id: str = "default", identity: dict | None = None) -> Dict[str, Any]:

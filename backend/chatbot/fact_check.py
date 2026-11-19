@@ -84,6 +84,7 @@ def unsupported_details(reply: str, facts: str, question: str = "") -> list[str]
     for line in facts.splitlines():
         if line.strip().lower().startswith("busy:"):
             busy_times |= _times(line)
-    if busy_times & _times(reply) and not re.search(r"\b(busy|teach\w*|class(es)?|booked|occupied|not free)\b", reply_lower):
+    busy_words = r"\b(busy|teach\w*|class(es)?|booked|occupied|not free|tied up|lectures?|labs?|sessions?|engaged)\b"
+    if busy_times & _times(reply) and not re.search(busy_words, reply_lower):
         problems.append("busy time shown without saying busy")
     return problems
