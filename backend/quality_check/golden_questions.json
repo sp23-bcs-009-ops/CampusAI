@@ -1,0 +1,83 @@
+{
+  "about": "Real questions a student or guest might ask. Run them after every change and compare the answers. 'expect' says what a good answer does: 'answer' = should help, 'block' = should politely decline (unrelated topic). Questions in one group share a chat session, so follow-ups work.",
+  "groups": [
+    {
+      "name": "Timetable from Firebase",
+      "questions": [
+        {"q": "Show me the timetable for BCS-1 on Monday", "expect": "answer"},
+        {"q": "what about Tuesday?", "expect": "answer"},
+        {"q": "who teaches the first class?", "expect": "answer"},
+        {"q": "bcs 3 classes tomorrow", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Teachers and rooms from Firebase",
+      "questions": [
+        {"q": "Is Muhammad Fawad free on Monday?", "expect": "answer"},
+        {"q": "which teachers are free right now?", "expect": "answer"},
+        {"q": "which rooms are free on friday morning?", "expect": "answer"},
+        {"q": "Is LT 4 free now?", "expect": "answer"},
+        {"q": "Where is the location of CR 2?", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Events, notices, lost and found from Firebase",
+      "questions": [
+        {"q": "any events this week?", "expect": "answer"},
+        {"q": "are there any emergency announcements?", "expect": "answer"},
+        {"q": "I lost my calculator, has anyone found one?", "expect": "answer"},
+        {"q": "show notifications for BCS-1", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Exams",
+      "questions": [
+        {"q": "when are the BCS-1 exams?", "expect": "answer"},
+        {"q": "I missed my paper yesterday, what should I do?", "expect": "answer"},
+        {"q": "I am stressed about midterms", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Campus website information",
+      "questions": [
+        {"q": "How do I apply for admission?", "expect": "answer"},
+        {"q": "how can I get into COMSATS Attock?", "expect": "answer"},
+        {"q": "which departments are there at Attock campus?", "expect": "answer"},
+        {"q": "who is the rector?", "expect": "answer"},
+        {"q": "Where is the library?", "expect": "answer"},
+        {"q": "what are the bus timings?", "expect": "answer"},
+        {"q": "what is the fee structure?", "expect": "answer"},
+        {"q": "what is the minimum CGPA to avoid probation?", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Conversation and feelings",
+      "questions": [
+        {"q": "hi", "expect": "answer"},
+        {"q": "who are you?", "expect": "answer"},
+        {"q": "can you help me with something?", "expect": "answer"},
+        {"q": "I feel sad today", "expect": "answer"},
+        {"q": "thanks a lot", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Personal questions as a guest",
+      "questions": [
+        {"q": "what are my classes today?", "expect": "answer"},
+        {"q": "what is my CGPA?", "expect": "answer"}
+      ]
+    },
+    {
+      "name": "Unrelated topics",
+      "questions": [
+        {"q": "tell me a movie name", "expect": "block"},
+        {"q": "who won the cricket world cup?", "expect": "block"},
+        {"q": "what is the capital of France?", "expect": "block"},
+        {"q": "tell me a joke", "expect": "block"},
+        {"q": "write python code to reverse a string", "expect": "block"},
+        {"q": "what's the weather today?", "expect": "block"},
+        {"q": "Show me the timetable for BCS-1 and tell me a movie name", "expect": "answer"}
+      ]
+    }
+  ]
+}
