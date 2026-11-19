@@ -5,10 +5,14 @@ Groq is the default. The key is read from the environment (backend/.env):
 
     GROQ_API_KEY=...
 
-Optional OpenAI override:
+Optional overrides:
 
     LLM_PROVIDER=openai
     OPENAI_API_KEY=sk-...
+
+    LLM_PROVIDER=cerebras
+    CEREBRAS_API_KEY=csk-...
+    CEREBRAS_MODEL=gpt-oss-120b
 
 pipeline.py calls get_chat_model() and never sees the provider details.
 """
@@ -17,6 +21,7 @@ from functools import lru_cache
 from settings.app_settings import settings
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+CEREBRAS_BASE_URL = "https://api.cerebras.ai/v1"
 
 
 def _require_groq_key() -> str:
@@ -43,6 +48,18 @@ def get_chat_model(temperature: float = 0.2, max_tokens: int = 1024):
             timeout=30,
         )
 
+    if settings.llm_provider == "cerebras":
+        if not settings.cerebras_api_key:
+            raise RuntimeError("CEREBRAS_API_KEY is not set. Add it to backend/.env and do not commit that file.")
+        return ChatOpenAI(
+            model=settings.cerebras_model,
+            api_key=settings.cerebras_api_key,
+            base_url=CEREBRAS_BASE_URL,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            timeout=30,
+        )
+
     return ChatOpenAI(
         model=settings.groq_model,
         api_key=_require_groq_key(),
@@ -56,6 +73,8 @@ def get_chat_model(temperature: float = 0.2, max_tokens: int = 1024):
 def llm_info() -> dict:
     if settings.llm_provider == "openai":
         return {"provider": "openai", "model": settings.openai_model}
+    if settings.llm_provider == "cerebras":
+        return {"provider": "cerebras", "model": settings.cerebras_model, "base_url": CEREBRAS_BASE_URL}
     return {
         "provider": "groq",
         "model": settings.groq_model,

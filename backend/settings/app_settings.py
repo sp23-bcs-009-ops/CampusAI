@@ -39,6 +39,8 @@ class Settings:
     groq_model: str = _env("GROQ_MODEL", "openai/gpt-oss-120b")
     openai_model: str = _env("OPENAI_MODEL", "gpt-4o-mini")
     openai_api_key: str = _env("OPENAI_API_KEY")
+    cerebras_api_key: str = _env("CEREBRAS_API_KEY")
+    cerebras_model: str = _env("CEREBRAS_MODEL", "gpt-oss-120b")
 
     # ── Security ─────────────────────────────────────────────────
     # If CAMPUS_AI_API_KEY is set, every request must send
