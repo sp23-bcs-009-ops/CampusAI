@@ -42,7 +42,7 @@ from data_sources.website_knowledge_reader import (
 )
 from settings.llm_provider import get_chat_model, get_fallback_chat_model
 from data_sources.firebase_reader import UniversityDataUnavailable
-from chatbot import saved_user_preferences as user_memory
+from chatbot.answer_formatter import card_to_text
 from chatbot.off_topic_guard import has_campus_anchor, is_creative_request, off_topic_category
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +57,7 @@ GENERAL_PROMPT = """You are CampusAI, a friendly assistant for students and staf
   phone numbers, emails, timings, dates, fees or rules. Do not guess them. When the user needs one,
   only say "your department office" or the campus website https://attock.comsats.edu.pk/.
 - If the user sounds stressed, sad or worried, reply kindly first, then offer something useful.
+- You only remember this chat. If asked to remember something for later, say you can't keep it after this chat.
 - If the request has nothing to do with the university (shopping, prices, recipes, diet, politics, crypto,
   animals, translation, writing code or solving homework, general knowledge), do not answer it: politely
   say you only help with COMSATS Attock campus matters.
@@ -183,7 +184,6 @@ NOT_IN_RECORDS = (
 @dataclass
 class SessionMemory:
     messages: List[BaseMessage] = field(default_factory=list)
-    summary: str = ""
     last_teacher: Optional[str] = None
     last_class: Optional[str] = None
     last_room: Optional[str] = None
@@ -198,17 +198,11 @@ class SessionMemory:
 
     def add_turn(self, question: str, answer: Any) -> None:
         self.messages.append(HumanMessage(content=question))
-        text = answer if isinstance(answer, str) else "(structured timetable answer)"
+        # Keep the readable text of timetable/room answers too, so the model can see them.
+        text = answer if isinstance(answer, str) else card_to_text(answer)
         self.messages.append(AIMessage(content=text[:600]))
         max_msgs = settings.memory_window * 2
         if len(self.messages) > max_msgs:
-            dropped = self.messages[:-max_msgs]
-            note = " ".join(
-                str(getattr(item, "content", ""))[:80]
-                for item in dropped
-                if getattr(item, "type", "") == "human"
-            )
-            self.summary = (self.summary + " " + note).strip()[:400]
             self.messages = self.messages[-max_msgs:]
 
 
@@ -2258,42 +2252,6 @@ def _student_timetable_overlaps(identity: dict) -> str:
     )
 
 
-def long_term_memory_for(email: str) -> list[dict]:
-    return user_memory.memories_for(email)
-
-
-def clear_long_term_memory(email: str) -> None:
-    user_memory.forget_memories(email)
-
-
-def _long_term_reply(question: str, identity: dict | None) -> str | None:
-    """Optional saved preferences. Never overrides profile, timetable, or documents."""
-    q_lower = (question or "").lower()
-    wants_save = bool(re.search(r"\b(please remember|remember that|save this preference)\b", q_lower))
-    wants_update = bool(re.search(r"\b(update my saved preference|replace my saved preference|change my saved preference)\b", q_lower))
-    wants_show = bool(re.search(r"\b(what do you remember about me|what have you saved about me)\b", q_lower))
-    wants_forget = bool(re.search(r"\b(forget what you remember|forget my saved preferences)\b", q_lower))
-    if not (wants_save or wants_show or wants_forget or wants_update):
-        return None
-    owner = str((identity or {}).get("email") or "").strip().lower()
-    if wants_forget:
-        return user_memory.forget_memories(owner)
-    if wants_show:
-        if not owner:
-            return "Sign in to save, view, or delete a campus preference. I will not keep this for a guest."
-        return user_memory.describe_memories(owner)
-    note = re.sub(
-        r"^\s*(please remember that|please remember|remember that|save this preference:?|"
-        r"update my saved preference to|replace my saved preference to|change my saved preference to)\s*",
-        "",
-        question or "",
-        flags=re.I,
-    ).strip(" .")
-    if wants_update:
-        return user_memory.replace_memory(owner, note)
-    return user_memory.save_memory(owner, note)
-
-
 def _asks_own_schedule(q_lower: str) -> bool:
     return bool(re.search(r"\bmy\b", q_lower) and any(
         word in q_lower for word in ("schedule", "timetable", "classes", "class")
@@ -2418,10 +2376,6 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
         result = answer_question(university_part, session_id=session_id, identity=identity)
         return _with_unrelated_note(result)
     memory = get_session(session_id)
-    remembered = _long_term_reply(question, identity)
-    if remembered is not None:
-        memory.add_turn(question, remembered)
-        return {"answer": remembered, "intent": "general"}
     greeting_or_help = role_reply(question, identity)
     if greeting_or_help is not None:
         memory.add_turn(question, greeting_or_help)

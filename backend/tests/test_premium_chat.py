@@ -56,9 +56,11 @@ def test_cards_the_app_cannot_draw_become_text():
         assert isinstance(text, str) and "{" not in text and "type" not in text
 
 
-def test_signed_in_screen_keeps_cards_it_can_draw():
-    card = {"type": "schedule", "class": "BS(CS)-I", "day": "Monday", "classes": []}
-    assert present(card, STUDENT) is card
+def test_signed_in_users_get_text_not_cards():
+    schedule = {"type": "schedule", "class": "BS(CS)-I", "day": "Monday", "classes": [
+        {"subject": "PF", "teacher": "Umar Zia", "room": "LT8", "time": "10:00-11:30", "day": "Monday"}]}
+    assert present(schedule, STUDENT) == "📅 BS(CS)-I — Monday\n• 10:00–11:30  PF — Umar Zia, LT8"
+    assert present(schedule, STUDENT) == present(schedule, None)
 
 
 def test_guests_always_get_text():

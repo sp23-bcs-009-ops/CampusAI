@@ -1,32 +1,20 @@
 """
 Final shaping of chatbot answers before they leave /ask.
 
-The app has two chat screens and neither can be changed from the backend:
-
-  * ChatScreen.js (signed-in student / teacher / staff) draws the card types in
-    SIGNED_IN_CARDS and prints any other dict as raw JSON.
-  * GuestModeScreen.js (no sign-in token) only flattens a few card types and
-    prints the rest as raw JSON, so guests always get text.
-
-Both screens show text exactly as sent, so Markdown symbols are removed.
+Every answer leaves as plain text, for signed-in users and guests alike.
+Timetable, teacher and room answers are built as dicts (with a "type") inside
+the chatbot; card_to_text() turns them into readable lines here. The app shows
+text exactly as sent, so Markdown symbols are removed.
 """
 from __future__ import annotations
 
 import re
 from typing import Any
 
-SIGNED_IN_CARDS = {
-    "schedule", "teacher_classes", "class_rooms", "teacher_availability",
-    "room_availability", "rooms_free", "rooms_schedule", "teachers_free_now",
-    "teacher_ambiguous",
-}
 
-
-def present(answer: Any, identity: dict | None) -> Any:
-    """Return an answer the caller's chat screen can display."""
+def present(answer: Any, identity: dict | None) -> str:
+    """Return the answer as plain text for any chat screen."""
     if isinstance(answer, dict):
-        if identity and answer.get("type") in SIGNED_IN_CARDS:
-            return answer
         return plain_text(card_to_text(answer))
     if answer is None:
         return ""

@@ -5,14 +5,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from timetable import timetable_lookup as tt
-from chatbot import saved_user_preferences as user_memory
 from chatbot.answer_pipeline import (
     REFUSAL,
     answer_question,
-    clear_long_term_memory,
     get_session,
     handle_comsats,
-    long_term_memory_for,
     route,
     RoutedQuestion,
     SessionMemory,
@@ -120,29 +117,12 @@ def test_retrieved_injection_is_treated_as_evidence(monkeypatch):
     assert "paris" not in answer.lower()
 
 
-def test_long_term_memory_is_isolated_and_can_be_deleted(tmp_path, monkeypatch):
-    monkeypatch.setattr(user_memory, "STORE", tmp_path / "long_term_memory.json")
-    first = answer_question(
-        "Please remember that I prefer short timetable answers.",
-        session_id="ltm-a",
-        identity=STUDENT,
-    )
-    other = answer_question(
-        "What do you remember about me?",
-        session_id="ltm-b",
-        identity={"type": "student", "email": "other@cuiatk.edu.pk", "dept": "cs", "semester": 1},
-    )
-    guest = answer_question("Please remember that I prefer labs.", session_id="ltm-guest")
-    shown = answer_question("What do you remember about me?", session_id="ltm-a", identity=STUDENT)
-    forgotten = answer_question("Forget my saved preferences.", session_id="ltm-a", identity=STUDENT)
-    assert "remember" in first["answer"].lower()
-    assert "do not have" in other["answer"].lower()
-    assert "sign in" in guest["answer"].lower()
-    assert "short timetable answers" in shown["answer"]
-    assert long_term_memory_for("other@cuiatk.edu.pk") == []
-    assert "deleted" in forgotten["answer"].lower()
-    assert long_term_memory_for("student@cuiatk.edu.pk") == []
-    clear_long_term_memory("student@cuiatk.edu.pk")
+def test_memory_keeps_the_text_of_timetable_answers():
+    session = "engine-answer-text"
+    answer_question("What are BCS-1 classes on Monday?", session_id=session)
+    last_reply = get_session(session).messages[-1].content
+    assert "Test Subject" in last_reply
+    assert "structured" not in last_reply
 
 
 def test_student_overlap_uses_published_meetings(monkeypatch):
@@ -173,14 +153,13 @@ def test_student_overlap_uses_published_meetings(monkeypatch):
     assert "cannot change" in result["answer"].lower()
 
 
-def test_summary_keeps_follow_up_after_window_fills():
+def test_follow_up_still_works_after_window_fills():
     session = "engine-window"
     answer_question("What are BCS-1 classes on Monday?", session_id=session)
     for index in range(20):
         answer_question("Hi", session_id=session)
     memory = get_session(session)
     assert memory.last_class == "BS(CS)-I"
-    assert memory.summary
     second = answer_question("what about tuesday?", session_id=session)
     assert second["answer"]["class"] == "BS(CS)-I"
     assert second["answer"]["day"] == "Tuesday"
