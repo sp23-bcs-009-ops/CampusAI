@@ -4,15 +4,10 @@ Live university answers always come from Firestore. This fixture exists so
 unit tests do not hit the network and cannot become a production fallback.
 """
 import os
-import tempfile
 
 import pytest
 
 os.environ.setdefault("KNOWLEDGE_MAX_AGE_DAYS", "0")
-os.environ.setdefault(
-    "CHROMA_DIR",
-    tempfile.mkdtemp(prefix="campusai-test-chroma-"),
-)
 os.environ.setdefault("CAMPUS_AI_API_KEY", "")
 
 TEST_TIMETABLE = {

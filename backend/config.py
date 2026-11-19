@@ -40,10 +40,6 @@ class Settings:
     openai_model: str = _env("OPENAI_MODEL", "gpt-4o-mini")
     openai_api_key: str = _env("OPENAI_API_KEY")
 
-    # ── RAG / ChromaDB ───────────────────────────────────────────
-    chroma_dir: str = _env("CHROMA_DIR", str(BASE_DIR / "chroma_db"))
-    rag_top_k: int = int(_env("RAG_TOP_K", "4"))
-
     # ── Security ─────────────────────────────────────────────────
     # If CAMPUS_AI_API_KEY is set, every request must send
     # header  X-API-Key: <key>.  Leave unset to keep the API open (dev).
