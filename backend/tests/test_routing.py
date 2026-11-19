@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 
-import timetable_service as tt
-from pipeline import route, get_session, answer_question, SessionMemory
+from timetable import timetable_lookup as tt
+from chatbot.answer_pipeline import route, get_session, answer_question, SessionMemory
 
 
 def fresh_memory():
@@ -313,7 +313,7 @@ def test_greeting_and_thanks_do_not_load_timetable_or_call_groq(monkeypatch):
         raise AssertionError("Groq should not be called")
 
     monkeypatch.setattr(tt, "ensure_timetable", fail_load)
-    monkeypatch.setattr("pipeline._run_chain", fail_groq)
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", fail_groq)
     greeting = answer_question("Hello", session_id="speed-hello")
     thanks = answer_question("thank you", session_id="speed-thanks")
     assert greeting["intent"] == "general"

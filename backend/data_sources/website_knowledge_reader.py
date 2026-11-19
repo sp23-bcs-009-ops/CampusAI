@@ -10,7 +10,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-PACK_DIR = Path(__file__).resolve().parent / "knowledge_pack"
+PACK_DIR = Path(__file__).resolve().parent / "website_knowledge"
 PACK_JSON = PACK_DIR / "attock_campus_knowledge_pack.json"
 SKIP_IDS = {"website_access_limitation"}
 SKIP_CATEGORIES = {"source_access_note"}

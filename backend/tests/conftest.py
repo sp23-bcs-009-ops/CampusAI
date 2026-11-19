@@ -89,8 +89,8 @@ def _offline_timetable(request, monkeypatch):
     if request.node.name == "test_firebase_failure_does_not_read_local_json":
         return
 
-    import timetable_service as tt
-    import university_data
+    from timetable import timetable_lookup as tt
+    from data_sources import firebase_reader as university_data
 
     monkeypatch.setattr(university_data, "load_timetable", lambda: TEST_TIMETABLE)
     monkeypatch.setattr(university_data, "schedule_mode", lambda: "regular")

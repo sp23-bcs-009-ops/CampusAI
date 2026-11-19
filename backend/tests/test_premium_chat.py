@@ -11,11 +11,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from fastapi.testclient import TestClient
 
-import API
-import timetable_service as tt
-import university_data
-from pipeline import EXAM_NOT_PUBLISHED, STUDY_HELP, answer_question
-from presentation import plain_text, present
+import api_server as API
+from timetable import timetable_lookup as tt
+from data_sources import firebase_reader as university_data
+from chatbot.answer_pipeline import EXAM_NOT_PUBLISHED, STUDY_HELP, answer_question
+from chatbot.answer_formatter import plain_text, present
 
 STUDENT = {"type": "student", "dept": "cs", "semester": 1, "fullName": "Ali Khan",
            "email": "student@cuiatk.edu.pk"}
@@ -91,7 +91,7 @@ def test_expired_sign_in_is_explained_not_silent(monkeypatch):
     """Firebase tokens expire after an hour; the app keeps sending the old one."""
     monkeypatch.setattr(API, "answer_question", lambda q, session_id="d", identity=None: {
         "answer": "You are in guest mode, so there is no signed-in profile.", "intent": "general"})
-    monkeypatch.setattr("identity.resolve_identity", lambda token: None)
+    monkeypatch.setattr("user_login.firebase_login_check.resolve_identity", lambda token: None)
     API.limiter.reset()
     client = TestClient(API.app)
     expired = client.post("/ask", json={"question": "who am i"}, headers={"Authorization": "Bearer old"}).json()
@@ -107,7 +107,7 @@ def test_expired_sign_in_is_explained_not_silent(monkeypatch):
 
 def test_each_signed_in_user_gets_their_own_limit(monkeypatch):
     monkeypatch.setattr(API, "answer_question", lambda q, session_id="d", identity=None: {"answer": "ok", "intent": "general"})
-    monkeypatch.setattr("identity.resolve_identity", lambda token: None)
+    monkeypatch.setattr("user_login.firebase_login_check.resolve_identity", lambda token: None)
     client = TestClient(API.app)
     API.limiter.reset()
     for token in ("student-a", "student-b"):
@@ -256,7 +256,7 @@ def test_student_subject_questions_and_teachers(monday_at):
 
 
 def test_private_records_facilities_and_class_change():
-    from pipeline import PRIVATE_RECORDS, SessionMemory, route
+    from chatbot.answer_pipeline import PRIVATE_RECORDS, SessionMemory, route
 
     assert ask("what is my gpa", STUDENT, session="p1")["answer"] == PRIVATE_RECORDS
     assert ask("my attendance", None, session="p2")["answer"] == PRIVATE_RECORDS
@@ -279,7 +279,7 @@ def test_teacher_and_room_free_now_are_yes_or_no(monday_at):
 
 def test_audit_fixes_rooms_free_slots_and_tidy_lists(monday_at):
     """From the 74-question student audit against Firebase, 17 Nov 2026."""
-    from pipeline import _combine_lab_names, _merge_slots
+    from chatbot.answer_pipeline import _combine_lab_names, _merge_slots
 
     monday_at(9 * 60)
     assert ask("free rooms now", STUDENT, session="a1")["intent"] == "rooms_all"

@@ -1,9 +1,13 @@
 """Offline checks that formal Text PDF writes stay in their timetable collection."""
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
-from backend import timetable_upload
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload import timetable_publisher as timetable_upload
 
 
 class FakeDocument:
@@ -86,7 +90,7 @@ def test_frontend_view_and_floor_map_have_no_legacy_timetable_fallback():
     root = Path(__file__).parents[2]
     source = (root / "Frontend/src/hooks/useTimetable.js").read_text(encoding="utf-8")
     app_source = (root / "Frontend/App.js").read_text(encoding="utf-8")
-    api_source = (root / "backend/API.py").read_text(encoding="utf-8")
+    api_source = (root / "backend/api_server.py").read_text(encoding="utf-8")
     legacy_server = (root / "Frontend/server/index.js").read_text(encoding="utf-8")
     assert "export const TIMETABLE_COLLECTION = 'text_pdf_timetables'" in source
     assert "fsList(TIMETABLE_COLLECTION" in source

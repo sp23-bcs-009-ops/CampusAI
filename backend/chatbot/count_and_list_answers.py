@@ -8,8 +8,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-import timetable_service as tt
-from university_data import DEPT_CODE
+from timetable import timetable_lookup as tt
+from data_sources.firebase_reader import DEPT_CODE
 
 COVERAGE = (
     "This is counted from the currently loaded published timetable, "

@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from pipeline import SessionMemory, answer_question, get_session, route
+from chatbot.answer_pipeline import SessionMemory, answer_question, get_session, route
 
 
 def test_timetable_question_returns_structured_schedule():

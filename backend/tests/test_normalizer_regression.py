@@ -4,8 +4,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from normalizer import extract_class_from_sentence, normalize_to_key
-from pipeline import answer_question, route, SessionMemory
+from timetable.class_name_normalizer import extract_class_from_sentence, normalize_to_key
+from chatbot.answer_pipeline import answer_question, route, SessionMemory
 
 
 KNOWN = ["BS(CS)-I", "BS(CS)-II", "BS(SE)-III", "BA(BA)-VII"]

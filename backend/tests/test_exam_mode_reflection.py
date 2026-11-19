@@ -11,11 +11,15 @@ Covers the three contracts agreed for Exam mode:
 """
 from __future__ import annotations
 
+import os
 import re
+import sys
 from pathlib import Path
 
-from backend import rule_based_text_pdf as local
-from backend import timetable_upload
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload import pdf_cell_rules as local
+from timetable_upload import timetable_publisher as timetable_upload
 
 ROOT = Path(__file__).parents[2]
 

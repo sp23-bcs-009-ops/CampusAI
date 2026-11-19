@@ -22,12 +22,14 @@ CMD ["python", "-m", "pytest", "-q", "/workspace/backend/tests"]
 
 FROM dependencies AS backend
 
-# Copy application code + data
-COPY config.py llm.py pipeline.py timetable_service.py API.py \
-     normalizer.py comsats_scraper.py timetable_upload.py text_pdf_layout.py \
-     rule_based_text_pdf.py exam_timetable_upload.py teacher_matching.py university_data.py knowledge_pack.py identity.py \
-     catalog.py user_memory.py presentation.py topic_guard.py ./
-COPY knowledge_pack ./knowledge_pack
+# Copy application code + data (website_knowledge/ lives inside data_sources/)
+COPY api_server.py ./
+COPY settings ./settings
+COPY chatbot ./chatbot
+COPY timetable ./timetable
+COPY data_sources ./data_sources
+COPY user_login ./user_login
+COPY timetable_upload ./timetable_upload
 
 # Writable data folder (docker-compose mounts a volume here)
 VOLUME /data
@@ -37,4 +39,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" || exit 1
 
-CMD ["uvicorn", "API:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8000"]

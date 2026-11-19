@@ -27,23 +27,23 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-import timetable_service as tt
-import university_data
-from comsats_scraper import is_comsats_question
-from config import settings
-from normalizer import normalize_to_key
-from catalog import answer_catalog
-from knowledge_pack import (
+from timetable import timetable_lookup as tt
+from data_sources import firebase_reader as university_data
+from chatbot.campus_question_check import is_comsats_question
+from settings.app_settings import settings
+from timetable.class_name_normalizer import normalize_to_key
+from chatbot.count_and_list_answers import answer_catalog
+from data_sources.website_knowledge_reader import (
     ARCHIVE_CATEGORIES,
     KnowledgePackUnavailable,
     format_pack_context,
     pack_is_relevant,
     retrieve_campus_documents,
 )
-from llm import get_chat_model, get_fallback_chat_model
-from university_data import UniversityDataUnavailable
-import user_memory
-from topic_guard import has_campus_anchor, is_creative_request, off_topic_category
+from settings.llm_provider import get_chat_model, get_fallback_chat_model
+from data_sources.firebase_reader import UniversityDataUnavailable
+from chatbot import saved_user_preferences as user_memory
+from chatbot.off_topic_guard import has_campus_anchor, is_creative_request, off_topic_category
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Prompts
@@ -485,7 +485,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
         return RoutedQuestion("off_topic", question)
     if _bare_day_followup(question) and not (memory.last_class or memory.last_teacher or memory.last_room):
         if identity and identity.get("type") == "student":
-            from identity import class_key_from_profile
+            from user_login.firebase_login_check import class_key_from_profile
             personal = class_key_from_profile(identity)
             tt.ensure_timetable()
             if personal and personal in tt.TIMETABLE:
@@ -549,7 +549,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
 
     from_profile = False
     if identity and not cls and _asks_own_schedule(q_lower):
-        from identity import class_key_from_profile, teacher_name_from_profile
+        from user_login.firebase_login_check import class_key_from_profile, teacher_name_from_profile
         if identity.get("type") == "teacher":
             named = teacher_name_from_profile(identity)
             if named:
@@ -568,7 +568,7 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
         and not re.search(r"\brooms?\b|\bclassrooms?\b", q_lower)  # "free rooms now" is about rooms
         and (tt.timetable_question(question) or tt.detect_day(question) or _CLASS_WORDS.search(q_lower))
     ):
-        from identity import class_key_from_profile
+        from user_login.firebase_login_check import class_key_from_profile
         personal = class_key_from_profile(identity)
         tt.ensure_timetable()
         if personal and personal in tt.TIMETABLE:
@@ -1473,7 +1473,7 @@ def role_reply(question: str, identity: dict | None) -> str | None:
     hello = f"Hi {name}! 👋" if name else "Hi! 👋"
     try:
         if role == "student":
-            from identity import class_key_from_profile
+            from user_login.firebase_login_check import class_key_from_profile
             key = class_key_from_profile(identity)
             tt.ensure_timetable()
             if key and key in tt.TIMETABLE:
@@ -1482,7 +1482,7 @@ def role_reply(question: str, identity: dict | None) -> str | None:
                     return f"{hello} {nxt} Ask me about your timetable, free time, exams or campus news."
             return f"{hello} Ask me about your timetable, free time, exams, teachers, rooms or campus news."
         if role == "teacher":
-            from identity import teacher_name_from_profile
+            from user_login.firebase_login_check import teacher_name_from_profile
             teacher = teacher_name_from_profile(identity)
             if teacher:
                 info = tt.find_next_teacher_class(teacher)
@@ -1575,7 +1575,7 @@ def _student_free_time(question: str, key: str) -> str:
 
 def _teacher_natural(question: str, identity: dict, memory: SessionMemory) -> tuple[str, str] | None:
     """Teacher-only answers from the verified profile. None keeps the normal route."""
-    from identity import teacher_name_from_profile
+    from user_login.firebase_login_check import teacher_name_from_profile
 
     q_lower = question.lower()
     if not re.search(r"\b(my|i|am|me)\b", q_lower):
@@ -1676,7 +1676,7 @@ def _student_identity_sentence(identity: dict) -> str:
     if has_semester:
         sentence += f", semester {shown_semester}"
     sentence += "."
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
     class_key = class_key_from_profile(identity)
     if class_key:
         sentence += f" Your class is {class_key}."
@@ -1739,7 +1739,7 @@ def _asked_calendar_date(question: str):
 
 
 def _student_subject_count(identity: dict) -> str:
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
 
     key = class_key_from_profile(identity)
     if not key:
@@ -1773,7 +1773,7 @@ def _student_compare_days(question: str, identity: dict) -> str | None:
     ]
     if len(days) < 2:
         return None
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
 
     key = class_key_from_profile(identity)
     if not key:
@@ -1830,7 +1830,7 @@ def _ordinal_meeting_reply(question: str, memory: SessionMemory) -> str | None:
 
 
 def _student_subjects(identity: dict) -> str:
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
 
     key = class_key_from_profile(identity)
     if not key:
@@ -1879,7 +1879,7 @@ _SUBJECT_STOP = {
 
 
 def _own_class_key(identity: dict) -> str | None:
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
 
     key = class_key_from_profile(identity)
     tt.ensure_timetable()
@@ -2112,12 +2112,12 @@ def _student_natural(question: str, identity: dict, memory: SessionMemory) -> tu
     personal = bool(re.search(r"\b(my|i|i'm|im|me)\b", q_lower))
     asks_other_class = _class_key_from_text(question) is not None
     if _is_exam_question(question) and not asks_other_class:
-        from identity import class_key_from_profile
+        from user_login.firebase_login_check import class_key_from_profile
         return exam_answer(class_key_from_profile(identity), question, mine=True), "exams"
     if personal and not asks_other_class and (
         _FREE_TIME_PATTERN.search(q_lower) or (_NOW_PATTERN.search(q_lower) and _CLASS_WORDS.search(q_lower))
     ):
-        from identity import class_key_from_profile
+        from user_login.firebase_login_check import class_key_from_profile
         key = class_key_from_profile(identity)
         tt.ensure_timetable()
         if not key or key not in tt.TIMETABLE:
@@ -2164,7 +2164,7 @@ def _student_natural(question: str, identity: dict, memory: SessionMemory) -> tu
     if events is not None:
         return events, "events"
     if re.search(r"\bnext class\b", q_lower):
-        from identity import class_key_from_profile
+        from user_login.firebase_login_check import class_key_from_profile
         key = class_key_from_profile(identity)
         if not key:
             return "I can't tell which class is yours. Tell me the class, for example BCS-1.", "general"
@@ -2224,7 +2224,7 @@ def _slot_bounds(slot: str) -> tuple[int, int] | None:
 
 
 def _student_timetable_overlaps(identity: dict) -> str:
-    from identity import class_key_from_profile
+    from user_login.firebase_login_check import class_key_from_profile
 
     key = class_key_from_profile(identity)
     if not key:
@@ -2334,7 +2334,7 @@ def personal_reply(question: str, identity: dict | None) -> str | None:
             "Tell me a class (for example BCS-1), a teacher, or ask \"free rooms now\"."
         )
     if role == "teacher":
-        from identity import teacher_name_from_profile
+        from user_login.firebase_login_check import teacher_name_from_profile
         if teacher_name_from_profile(identity):
             return None
         name = identity.get("fullName") or identity.get("name") or "that name"
@@ -2343,7 +2343,7 @@ def personal_reply(question: str, identity: dict | None) -> str | None:
             "so I cannot show a personal schedule."
         )
     if role == "student":
-        from identity import class_key_from_profile
+        from user_login.firebase_login_check import class_key_from_profile
         tt.ensure_timetable()
         key = class_key_from_profile(identity)
         if key and key in tt.TIMETABLE:
@@ -2386,7 +2386,7 @@ def _student_notices(question: str, identity: dict) -> tuple[str, str] | None:
                 shown = [line(record) for record in records[:8]]
                 lines.append("Published announcements: " + "; ".join(shown) + ".")
         if wants_notifications:
-            from identity import class_key_from_profile
+            from user_login.firebase_login_check import class_key_from_profile
             key = class_key_from_profile(identity)
             dept, semester = _notification_target(key) if key else (None, None)
             if not key or dept is None or semester is None:

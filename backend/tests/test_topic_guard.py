@@ -6,9 +6,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pipeline
-import university_data
-from pipeline import REFUSAL, _UNRELATED_NOTE, answer_question
+from chatbot import answer_pipeline as pipeline
+from data_sources import firebase_reader as university_data
+from chatbot.answer_pipeline import REFUSAL, _UNRELATED_NOTE, answer_question
 
 CAMPUS_QUESTIONS = [
     "Where is the location of CR 2?",

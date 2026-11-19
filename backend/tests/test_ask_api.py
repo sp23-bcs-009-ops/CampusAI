@@ -6,8 +6,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from fastapi.testclient import TestClient
 
-import API
-from API import app
+import api_server as API
+from api_server import app
 
 client = TestClient(app)
 
@@ -61,7 +61,7 @@ def test_ask_verifies_the_bearer_token_and_ignores_a_json_role(monkeypatch):
         seen["question"] = question
         return {"answer": "ok", "intent": "general"}
 
-    monkeypatch.setattr("identity.resolve_identity", fake_resolve)
+    monkeypatch.setattr("user_login.firebase_login_check.resolve_identity", fake_resolve)
     monkeypatch.setattr(API, "answer_question", fake_answer)
     response = client.post(
         "/ask",
@@ -93,7 +93,7 @@ def test_ask_rejects_blank_or_huge_questions_and_a_bad_token(monkeypatch):
         seen["identity"] = identity
         return {"answer": "ok", "intent": "general"}
 
-    monkeypatch.setattr("identity.resolve_identity", fake_resolve)
+    monkeypatch.setattr("user_login.firebase_login_check.resolve_identity", fake_resolve)
     monkeypatch.setattr(API, "answer_question", fake_answer)
 
     blank = client.post("/ask", json={"question": "   "})
@@ -128,7 +128,7 @@ def test_guest_session_cannot_reuse_a_verified_user_session(monkeypatch):
         seen.append({"session_id": session_id, "identity": identity, "question": question})
         return {"answer": "ok", "intent": "general"}
 
-    monkeypatch.setattr("identity.resolve_identity", fake_resolve)
+    monkeypatch.setattr("user_login.firebase_login_check.resolve_identity", fake_resolve)
     monkeypatch.setattr(API, "answer_question", fake_answer)
     signed = client.post(
         "/ask",

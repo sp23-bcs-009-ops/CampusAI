@@ -10,7 +10,7 @@ from threading import Lock
 
 STORE = Path(
     os.environ.get("CAMPUSAI_MEMORY_PATH")
-    or (Path(__file__).resolve().parent / "data" / "long_term_memory.json")
+    or (Path(__file__).resolve().parents[1] / "data" / "long_term_memory.json")
 )
 SECRET = re.compile(r"password|token|api key|bearer|gsk_|private key|date of birth|\bdob\b", re.I)
 _LOCK = Lock()

@@ -14,9 +14,9 @@ from openpyxl.utils.datetime import from_excel
 from openpyxl.utils.exceptions import InvalidFileException
 
 if __package__:
-    from .timetable_upload import save_text_pdf_timetable_documents
+    from .timetable_publisher import save_text_pdf_timetable_documents
 else:
-    from timetable_upload import save_text_pdf_timetable_documents
+    from timetable_upload.timetable_publisher import save_text_pdf_timetable_documents
 
 
 class ExamTimetableValidationError(ValueError):

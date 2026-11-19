@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
-    from .teacher_matching import match_teacher_list_name
+    from .teacher_name_matcher import match_teacher_list_name
 except ImportError:
-    from teacher_matching import match_teacher_list_name
+    from timetable_upload.teacher_name_matcher import match_teacher_list_name
 
 import firebase_admin
 from firebase_admin import auth, credentials, firestore
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 DAY_ORDER = {day: index for index, day in enumerate(
     ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 )}
-DEFAULT_TEACHER_LIST = Path(__file__).resolve().parents[1] / "Frontend" / "src" / "data" / "teachers_seed.json"
+DEFAULT_TEACHER_LIST = Path(__file__).resolve().parents[2] / "Frontend" / "src" / "data" / "teachers_seed.json"
 _FIREBASE_LOCK = threading.Lock()
 
 

@@ -6,7 +6,7 @@ locally, in Docker, or with the optional OpenAI provider.
 import os
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parents[1]  # backend/ (holds .env)
 
 
 def _load_dotenv() -> None:

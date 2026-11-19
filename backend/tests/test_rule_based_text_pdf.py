@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 
 import pymupdf
 import pytest
 
-from backend import rule_based_text_pdf as local
-from backend.text_pdf_layout import TextPdfValidationError
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload import pdf_cell_rules as local
+from timetable_upload.pdf_layout_reader import TextPdfValidationError
 
 
 def _token(text, x, y, *, bold=False):

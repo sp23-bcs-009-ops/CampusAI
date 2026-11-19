@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-import university_data
-from pipeline import SessionMemory, route
-from university_data import UniversityDataUnavailable
+from data_sources import firebase_reader as university_data
+from chatbot.answer_pipeline import SessionMemory, route
+from data_sources.firebase_reader import UniversityDataUnavailable
 
 
 def test_display_rows_map_onto_timetable_keys():
@@ -64,12 +64,12 @@ def test_firebase_failure_does_not_read_local_json(monkeypatch):
 def test_chatbot_modules_do_not_import_chroma_or_local_timetable():
     from pathlib import Path
 
-    import pipeline
+    from chatbot import answer_pipeline as pipeline
 
     backend = Path(__file__).resolve().parents[1]
-    api_src = (backend / "API.py").read_text(encoding="utf-8")
-    pipeline_src = (backend / "pipeline.py").read_text(encoding="utf-8")
-    data_src = (backend / "university_data.py").read_text(encoding="utf-8")
+    api_src = (backend / "api_server.py").read_text(encoding="utf-8")
+    pipeline_src = (backend / "chatbot" / "answer_pipeline.py").read_text(encoding="utf-8")
+    data_src = (backend / "data_sources" / "firebase_reader.py").read_text(encoding="utf-8")
 
     assert not hasattr(pipeline, "rag_store")
     assert "from rag_store import" not in api_src

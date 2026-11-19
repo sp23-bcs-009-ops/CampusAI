@@ -4,8 +4,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from catalog import catalog_from_timetable, detect_catalog_op
-from pipeline import answer_question, get_session
+from chatbot.count_and_list_answers import catalog_from_timetable, detect_catalog_op
+from chatbot.answer_pipeline import answer_question, get_session
 
 
 def test_unique_subjects_are_not_meetings_or_sections():

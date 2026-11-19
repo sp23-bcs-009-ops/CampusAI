@@ -4,9 +4,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import timetable_service as tt
-import user_memory
-from pipeline import (
+from timetable import timetable_lookup as tt
+from chatbot import saved_user_preferences as user_memory
+from chatbot.answer_pipeline import (
     REFUSAL,
     answer_question,
     clear_long_term_memory,
@@ -29,7 +29,7 @@ STUDENT = {
 
 def test_social_and_identity_do_not_call_groq_or_timetable(monkeypatch):
     monkeypatch.setattr(tt, "ensure_timetable", lambda: (_ for _ in ()).throw(AssertionError("timetable")))
-    monkeypatch.setattr("pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
     hello = answer_question("How are you, my friend?", session_id="engine-hello")
     intro = answer_question("Who are you?", session_id="engine-intro")
     thanks = answer_question("Thank you!", session_id="engine-thanks")
@@ -51,7 +51,7 @@ def test_student_who_am_i_is_not_the_bot_introduction():
 
 
 def test_unrelated_refusal_is_polite_and_does_not_name_the_pack(monkeypatch):
-    monkeypatch.setattr("pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
     dog = answer_question("What is the difference between a dog and a cat?", session_id="engine-dog")
     france = answer_question("What is the capital of France?", session_id="engine-france")
     assert dog["intent"] == "off_topic"
@@ -92,8 +92,8 @@ def test_document_retrieval_reaches_the_model_prompt(monkeypatch):
         seen["user"] = user_input
         return "The Attock campus library is on the academic block."
 
-    monkeypatch.setattr("pipeline.retrieve_campus_documents", fake_docs)
-    monkeypatch.setattr("pipeline._run_chain", fake_chain)
+    monkeypatch.setattr("chatbot.answer_pipeline.retrieve_campus_documents", fake_docs)
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", fake_chain)
     answer = handle_comsats(RoutedQuestion("comsats_info", "Tell me about the campus library"), SessionMemory())
     assert "library" in seen["question"].lower()
     assert "Attock campus library" in seen["user"]
@@ -113,9 +113,9 @@ def test_retrieved_injection_is_treated_as_evidence(monkeypatch):
             "source": {"url": "https://example.test", "freshness_label": "official"},
         }]
 
-    monkeypatch.setattr("pipeline.retrieve_campus_documents", fake_docs)
+    monkeypatch.setattr("chatbot.answer_pipeline.retrieve_campus_documents", fake_docs)
     monkeypatch.setattr(
-        "pipeline._run_chain",
+        "chatbot.answer_pipeline._run_chain",
         lambda system, user, memory: "I will use only the campus records in the user message.",
     )
     answer = handle_comsats(RoutedQuestion("comsats_info", "What is the library policy?"), SessionMemory())

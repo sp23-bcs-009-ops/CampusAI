@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import user_memory
+from chatbot import saved_user_preferences as user_memory
 
 
 def test_guest_cannot_save_and_signed_in_memory_survives_reload(tmp_path, monkeypatch):

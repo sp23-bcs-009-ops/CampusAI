@@ -7,50 +7,57 @@ availability from Firestore, and COMSATS University info from the official websi
 
 ```
                         ┌──────────────────────────────┐
-  POST /ask ──────────► │ API.py (thin HTTP layer)     │
+  POST /ask ──────────► │ api_server.py (HTTP layer)   │
                         │  • rate limiter (slowapi)    │
                         │  • X-API-Key auth middleware │
                         └──────────────┬───────────────┘
                                        ▼
                         ┌──────────────────────────────┐
-                        │ pipeline.py (LangChain)      │
+                        │ chatbot/answer_pipeline.py   │
                         │  IntentRouter + chat memory  │
                         └───┬──────────┬───────────┬───┘
                  timetable/ │          │ comsats   │ greetings/
                  teacher/   ▼          ▼           ▼ small-talk
               ┌──────────────────┐ ┌──────────┐ ┌─────────┐
-              │timetable_service │ │ live     │ │ llm.py  │
-              │ + Firestore      │ │ website  │ │Groq/    │
-              └──────────────────┘ └──────────┘ │OpenAI   │
-                                                └─────────┘
+              │timetable_lookup  │ │ website  │ │ llm_    │
+              │ + Firestore      │ │knowledge │ │provider │
+              └──────────────────┘ └──────────┘ └─────────┘
 ```
 
 | File | Responsibility |
 |---|---|
-| `API.py` | Routes, CORS, rate limiting, API-key auth |
-| `pipeline.py` | LangChain intent routing + per-session memory |
-| `timetable_service.py` | All deterministic timetable/teacher/room logic |
-| `university_data.py` | Read-only Firestore client for university records |
-| `llm.py` | LLM provider abstraction (Groq, optional OpenAI) |
-| `config.py` | Env-driven settings (reads `.env` too) |
-| `knowledge_pack.py` | Approved Attock/COMSATS website knowledge pack |
-| `text_pdf_layout.py` | PyMuPDF text, coordinate, and timetable-grid extraction |
-| `rule_based_text_pdf.py` | Python-only cell parsing used by `/upload-timetable` |
-| `exam_timetable_upload.py` | Validates Excel datesheets and publishes Exam Mode timetable documents |
-| `teacher_matching.py` | Conservative matching to canonical Teacher List names |
+| `api_server.py` | Routes, CORS, rate limiting, API-key auth |
+| `chatbot/answer_pipeline.py` | Intent routing, handlers, per-session memory |
+| `chatbot/answer_formatter.py` | Shapes answers for the guest and signed-in chat screens |
+| `chatbot/off_topic_guard.py` | Decides whether a question is off-topic |
+| `chatbot/campus_question_check.py` | Spots COMSATS / campus-information questions |
+| `chatbot/count_and_list_answers.py` | "How many / which" answers from the timetable |
+| `chatbot/saved_user_preferences.py` | "Please remember…" notes for signed-in users |
+| `timetable/timetable_lookup.py` | All deterministic timetable/teacher/room logic |
+| `timetable/class_name_normalizer.py` | Turns "bcs1" etc. into class keys like `BS(CS)-I` |
+| `data_sources/firebase_reader.py` | Read-only Firestore client for university records |
+| `data_sources/website_knowledge_reader.py` | Approved Attock/COMSATS website knowledge pack |
+| `user_login/firebase_login_check.py` | Verifies the sign-in token and loads the user's profile |
+| `settings/app_settings.py` | Env-driven settings (reads `backend/.env`) |
+| `settings/llm_provider.py` | LLM provider abstraction (Groq, optional OpenAI) |
+| `timetable_upload/pdf_layout_reader.py` | PyMuPDF text, coordinate, and timetable-grid extraction |
+| `timetable_upload/pdf_cell_rules.py` | Python-only cell parsing used by `/upload-timetable` |
+| `timetable_upload/timetable_publisher.py` | Saves parsed timetables to Firestore |
+| `timetable_upload/exam_datesheet_upload.py` | Validates Excel datesheets and publishes Exam Mode timetable documents |
+| `timetable_upload/teacher_name_matcher.py` | Conservative matching to canonical Teacher List names |
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
 cp .env.example .env          # optional, tweak as needed
-uvicorn API:app --host 0.0.0.0 --port 8000
+uvicorn api_server:app --host 0.0.0.0 --port 8000
 ```
 
 University timetable, teacher, event, and announcement answers come from
 Firestore project `universityassistentai`. COMSATS website and published
 campus-information answers use the approved Attock Campus Knowledge Pack
-in `backend/knowledge_pack/`. There is no local timetable fallback.
+in `backend/data_sources/website_knowledge/`. There is no local timetable fallback.
 
 ## Run with Docker (demo day)
 

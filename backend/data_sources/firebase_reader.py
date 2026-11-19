@@ -13,7 +13,7 @@ import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
-import config  # loads backend/.env without exposing secrets
+from settings import app_settings as config  # loads backend/.env without exposing secrets
 
 ROMAN = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI", 7: "VII", 8: "VIII"}
 DEPT_CODE = {

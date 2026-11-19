@@ -14,32 +14,32 @@ import pymupdf
 
 # Load backend/.env for the optional Firestore write. No key values are printed.
 if __package__:
-    from . import config as _backend_config  # noqa: F401
-    from .teacher_matching import match_teacher_list_name, teacher_match_form
-    from .text_pdf_layout import (
+    from settings import app_settings as _backend_config  # noqa: F401
+    from .teacher_name_matcher import match_teacher_list_name, teacher_match_form
+    from .pdf_layout_reader import (
         DAY_ALIASES, WEEKDAYS, TextPdfValidationError, _lecture_column_bounds,
         _page_cell_inputs, _weekday_label_positions, _weekday_row_bounds,
         aggregate_timetable_pages, extract_pdf_layout, validate_page_result,
     )
-    from .timetable_upload import (
+    from .timetable_publisher import (
         TimetableConversionError, convert_ocr_to_documents,
         normalize_department_semester, save_text_pdf_timetable_documents,
     )
 else:
-    import config as _backend_config  # noqa: F401
-    from teacher_matching import match_teacher_list_name, teacher_match_form
-    from text_pdf_layout import (
+    from settings import app_settings as _backend_config  # noqa: F401
+    from timetable_upload.teacher_name_matcher import match_teacher_list_name, teacher_match_form
+    from timetable_upload.pdf_layout_reader import (
         DAY_ALIASES, WEEKDAYS, TextPdfValidationError, _lecture_column_bounds,
         _page_cell_inputs, _weekday_label_positions, _weekday_row_bounds,
         aggregate_timetable_pages, extract_pdf_layout, validate_page_result,
     )
-    from timetable_upload import (
+    from timetable_upload.timetable_publisher import (
         TimetableConversionError, convert_ocr_to_documents,
         normalize_department_semester, save_text_pdf_timetable_documents,
     )
 
 
-TEACHER_SEED = Path(__file__).resolve().parents[1] / "Frontend" / "src" / "data" / "teachers_seed.json"
+TEACHER_SEED = Path(__file__).resolve().parents[2] / "Frontend" / "src" / "data" / "teachers_seed.json"
 ROOM_PATTERN = re.compile(
     r"(?<![A-Z0-9])((?:EE\s+)?C\.?\s*LAB(?:ORATORY)?|"
     r"LT|CR|LH|LAB|LECTURE\s+HALL|CLASS\s*ROOM|CLASSROOM)"

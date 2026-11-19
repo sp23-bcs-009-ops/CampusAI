@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from io import BytesIO
 from pathlib import Path
 
 import pytest
 from openpyxl import Workbook
 
-from backend import exam_timetable_upload as exam
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload import exam_datesheet_upload as exam
 
 
 HEADERS = [
@@ -153,7 +157,7 @@ def test_publish_writes_only_exam_documents_and_manifest(monkeypatch):
 
 
 def test_exam_upload_endpoint_is_staff_only_and_requires_exam_mode():
-    api_source = (Path(__file__).parents[2] / "backend" / "API.py").read_text(encoding="utf-8")
+    api_source = (Path(__file__).parents[2] / "backend" / "api_server.py").read_text(encoding="utf-8")
     assert '@app.post("/upload-exam-timetable")' in api_source
     assert "_exam_upload_role_allowed(uploader)" in api_source
     assert 'current_mode != "exam"' in api_source
@@ -161,7 +165,7 @@ def test_exam_upload_endpoint_is_staff_only_and_requires_exam_mode():
 
 
 def test_exam_upload_accepts_dev_test_identity_only_when_dev_mode_is_enabled(monkeypatch):
-    import API
+    import api_server as API
 
     monkeypatch.setenv("TIMETABLE_UPLOAD_DEV_MODE", "false")
     assert API._exam_upload_role_allowed({"role": "staff"})

@@ -12,7 +12,7 @@ import json
 import time
 import urllib.parse
 
-import university_data
+from data_sources import firebase_reader as university_data
 
 _CACHE: dict[str, tuple[float, dict | None]] = {}
 _CACHE_SECONDS = 300
@@ -40,7 +40,7 @@ def class_key_from_profile(profile: dict | None) -> str | None:
 def teacher_name_from_profile(profile: dict | None) -> str | None:
     if not profile or profile.get("type") != "teacher":
         return None
-    import timetable_service as tt
+    from timetable import timetable_lookup as tt
 
     tt.ensure_timetable()
     wanted = str(profile.get("fullName") or profile.get("name") or "").strip().lower()

@@ -2,15 +2,15 @@
 Campus AI — FastAPI backend.
 
 Architecture (refactored):
-    API.py               ← thin HTTP layer: routes, rate limit, auth, CORS
-    pipeline.py          ← LangChain intent router + per-session memory
-    timetable_service.py ← deterministic timetable/teacher/room logic
-    university_data.py   ← Firestore university records
-    llm.py               ← LLM provider (Groq, optional OpenAI)
-    config.py            ← env-driven settings
+    api_server.py                     ← thin HTTP layer: routes, rate limit, auth, CORS
+    chatbot/answer_pipeline.py        ← LangChain intent router + per-session memory
+    timetable/timetable_lookup.py     ← deterministic timetable/teacher/room logic
+    data_sources/firebase_reader.py   ← Firestore university records
+    settings/llm_provider.py          ← LLM provider (Groq, optional OpenAI)
+    settings/app_settings.py          ← env-driven settings
 
 Run:
-    uvicorn API:app --host 0.0.0.0 --port 8000
+    uvicorn api_server:app --host 0.0.0.0 --port 8000
 """
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,25 +21,25 @@ from slowapi.util import get_remote_address
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
-import timetable_service as tt
-from university_data import UniversityDataUnavailable, schedule_mode as get_schedule_mode
-from knowledge_pack import KnowledgePackUnavailable, pack_status
-from config import settings
-from llm import llm_info
-from pipeline import answer_question
-from presentation import present
-from timetable_upload import (
+from timetable import timetable_lookup as tt
+from data_sources.firebase_reader import UniversityDataUnavailable, schedule_mode as get_schedule_mode
+from data_sources.website_knowledge_reader import KnowledgePackUnavailable, pack_status
+from settings.app_settings import settings
+from settings.llm_provider import llm_info
+from chatbot.answer_pipeline import answer_question
+from chatbot.answer_formatter import present
+from timetable_upload.timetable_publisher import (
     InvalidFirebaseToken,
     TimetableConversionError,
     save_text_pdf_timetable_documents,
     verify_timetable_uploader,
 )
-from rule_based_text_pdf import process_rule_based_pdf
-from exam_timetable_upload import (
+from timetable_upload.pdf_cell_rules import process_rule_based_pdf
+from timetable_upload.exam_datesheet_upload import (
     ExamTimetableValidationError,
     publish_exam_timetable_xlsx,
 )
-from text_pdf_layout import (
+from timetable_upload.pdf_layout_reader import (
     TextPdfRequiredError,
     TextPdfValidationError,
 )
@@ -126,13 +126,13 @@ def _warm_university_cache() -> None:
     The timetable cache still expires after five minutes, so a new publish is not hidden.
     """
     try:
-        from identity import warm_keys
+        from user_login.firebase_login_check import warm_keys
         warm_keys()
         print("[AUTH] Firebase signing keys ready")
     except Exception as exc:
         print(f"[AUTH] Firebase signing keys were not prefetched: {exc}")
     try:
-        from university_data import load_firebase_timetable
+        from data_sources.firebase_reader import load_firebase_timetable
         load_firebase_timetable()
         print("[DATA] Timetable prefetched")
     except Exception as exc:
@@ -380,7 +380,7 @@ def ask(q: Query, request: Request, authorization: str | None = Header(default=N
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
     if token:
-        from identity import resolve_identity
+        from user_login.firebase_login_check import resolve_identity
         identity = resolve_identity(token)
     # A guest cannot continue a verified user's server memory by reusing a session id.
     if identity and identity.get("email"):
@@ -528,7 +528,7 @@ def _knowledge_pack_health():
 def comsats_status():
     pack = _knowledge_pack_health()
     return {
-        "source": "backend/knowledge_pack/attock_campus_knowledge_pack.json",
+        "source": "backend/data_sources/website_knowledge/attock_campus_knowledge_pack.json",
         "storage": "approved Attock Campus Knowledge Pack",
         "updated_at": pack.get("compiled_date"),
         "page_count": pack.get("document_count", 0),

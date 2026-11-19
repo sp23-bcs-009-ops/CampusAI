@@ -14,7 +14,7 @@ pipeline.py calls get_chat_model() and never sees the provider details.
 """
 from functools import lru_cache
 
-from config import settings
+from settings.app_settings import settings
 
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 

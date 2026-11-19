@@ -1,6 +1,6 @@
 """Approved Attock website knowledge pack retrieval."""
-from knowledge_pack import format_pack_context, pack_status, search_pack
-from pipeline import SessionMemory, route
+from data_sources.website_knowledge_reader import format_pack_context, pack_status, search_pack
+from chatbot.answer_pipeline import SessionMemory, route
 
 
 def test_pack_loads_usable_documents():

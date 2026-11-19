@@ -5,8 +5,8 @@ import urllib.error
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import identity
-from pipeline import answer_question
+from user_login import firebase_login_check as identity
+from chatbot.answer_pipeline import answer_question
 
 
 STUDENT = {"type": "student", "dept": "cs", "semester": 1, "email": "student@cuiatk.edu.pk"}
@@ -45,7 +45,7 @@ def test_invalid_or_unverified_tokens_are_rejected(monkeypatch):
 
 
 def test_profile_read_keeps_the_token_out_of_the_url(monkeypatch):
-    import university_data
+    from data_sources import firebase_reader as university_data
 
     seen = {}
 
@@ -190,7 +190,7 @@ def test_a_named_class_still_wins_over_the_profile():
 
 
 def test_student_uses_profile_facts_and_does_not_share_context(monkeypatch):
-    import timetable_service as tt
+    from timetable import timetable_lookup as tt
 
     monkeypatch.setattr(tt, "today_name", lambda: "Thursday")
     monkeypatch.setattr(tt, "_current_minutes", lambda: 12 * 60)
@@ -261,7 +261,7 @@ def test_guest_follow_up_day_still_asks_for_a_class():
 
 
 def test_student_event_date_does_not_change_the_guest_event_answer(monkeypatch):
-    import university_data
+    from data_sources import firebase_reader as university_data
 
     records = [{"title": "Football", "date": "2020-04-30", "time": "01:43", "venue": "Ground"}]
     monkeypatch.setattr(
@@ -293,7 +293,7 @@ def test_every_mode_refuses_unrelated_questions_without_the_model(monkeypatch):
     def fail_model(*_args, **_kwargs):
         raise AssertionError("the model should not answer an unrelated question")
 
-    monkeypatch.setattr("pipeline._run_chain", fail_model)
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", fail_model)
     modes = {
         "guest": None,
         "student": STUDENT,
@@ -310,7 +310,7 @@ def test_every_mode_refuses_unrelated_questions_without_the_model(monkeypatch):
 
 
 def test_mixed_questions_keep_the_university_part_in_every_mode(monkeypatch):
-    import timetable_service as tt
+    from timetable import timetable_lookup as tt
 
     monkeypatch.setattr(tt, "today_name", lambda: "Thursday")
     monkeypatch.setattr(tt, "_current_minutes", lambda: 12 * 60)
@@ -353,7 +353,7 @@ def test_mixed_questions_keep_the_university_part_in_every_mode(monkeypatch):
 
 
 def test_student_notices_stay_short_and_guest_announcements_stay_detailed(monkeypatch):
-    import university_data
+    from data_sources import firebase_reader as university_data
 
     def records(kind, dept=None, semester=None):
         if kind == "announcements":

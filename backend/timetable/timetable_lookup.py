@@ -10,8 +10,8 @@ import re
 
 from rapidfuzz import fuzz, process
 
-from normalizer import extract_class_from_sentence, normalize_to_key
-from comsats_scraper import is_comsats_question
+from timetable.class_name_normalizer import extract_class_from_sentence, normalize_to_key
+from chatbot.campus_question_check import is_comsats_question
 
 # Indexes are filled by ensure_timetable() from Firestore.
 TIMETABLE = {}
@@ -77,7 +77,7 @@ def _rebuild_indexes(data: dict) -> None:
 
 def ensure_timetable() -> None:
     """Load the authoritative timetable. A failed Firebase read is not replaced with JSON."""
-    from university_data import load_timetable
+    from data_sources.firebase_reader import load_timetable
 
     data = load_timetable()
     if data is not TIMETABLE:
@@ -85,7 +85,7 @@ def ensure_timetable() -> None:
 
 
 def schedule_mode() -> str:
-    from university_data import active_mode
+    from data_sources.firebase_reader import active_mode
 
     return active_mode()
 
@@ -630,7 +630,7 @@ def is_off_topic(text: str) -> bool:
 
     The chatbot router uses topic_guard directly; this stays for older callers.
     """
-    from topic_guard import has_campus_anchor, is_creative_request, off_topic_category
+    from chatbot.off_topic_guard import has_campus_anchor, is_creative_request, off_topic_category
 
     if is_creative_request(text):
         return True
