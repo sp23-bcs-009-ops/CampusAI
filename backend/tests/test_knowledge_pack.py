@@ -48,3 +48,11 @@ def test_website_questions_still_route_to_comsats_info():
     memory = SessionMemory()
     assert route("tell me about COMSATS campuses", memory).intent == "comsats_info"
     assert route("who is the rector of COMSATS?", memory).intent == "comsats_info"
+
+
+def test_website_search_needs_a_campus_word():
+    from chatbot.answer_pipeline import SessionMemory, route
+
+    memory = SessionMemory()
+    assert route("what is the difference between a dog and a cat?", memory).intent != "comsats_info"
+    assert route("which departments are there at Attock campus?", memory).intent == "comsats_info"

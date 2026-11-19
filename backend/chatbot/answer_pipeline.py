@@ -427,17 +427,6 @@ def _has_university_signal(question: str) -> bool:
     return has_campus_anchor(question) or _class_key_from_text(question) is not None
 
 
-_PACK_ANCHORS = (
-    "comsats", "attock", "cui", "cwur", "rector", "campus", "admission",
-    "department", "prospectus", "faculty", "library", "cu online",
-)
-
-
-def _has_pack_anchor(question: str) -> bool:
-    text = (question or "").lower()
-    return is_comsats_question(question) or any(anchor in text for anchor in _PACK_ANCHORS)
-
-
 def _clearly_unrelated(question: str) -> bool:
     """True only when the question asks for something outside the campus.
 
@@ -640,7 +629,8 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
     )
     if not campus_lookup:
         try:
-            if pack_is_relevant(question):
+            # A campus word is required, so "dog vs cat" can't match a record by chance.
+            if has_campus_anchor(question) and pack_is_relevant(question):
                 return RoutedQuestion("comsats_info", question, **base)
         except KnowledgePackUnavailable:
             pass
