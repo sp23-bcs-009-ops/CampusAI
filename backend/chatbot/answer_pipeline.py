@@ -20,13 +20,18 @@ in question_checks.py, and per-chat memory in chat_memory.py.
 """
 from __future__ import annotations
 
+import re
+import time
+from collections import deque
 from functools import lru_cache
 from typing import Any, Dict
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
-from chatbot.ai_prompts import COMSATS_PROMPT, GENERAL_PROMPT, RECORD_PROMPT
+from chatbot.ai_prompts import COMSATS_PROMPT, FACTS_PROMPT, GENERAL_PROMPT, RECORD_PROMPT
+from chatbot.answer_formatter import card_to_text
+from chatbot.fact_check import unsupported_details
 from chatbot.campus_question_check import is_comsats_question
 from chatbot.count_and_list_answers import answer_catalog
 from data_sources import firebase_reader as university_data
@@ -37,10 +42,11 @@ from data_sources.website_knowledge_reader import (
     format_pack_context,
     retrieve_campus_documents,
 )
+from settings.app_settings import settings
 from settings.llm_provider import get_chat_model
 from timetable import timetable_lookup as tt
 
-from chatbot.fixed_replies import CLARIFY, INTRO, NOT_IN_RECORDS, PRIVATE_RECORDS, REFUSAL
+from chatbot.fixed_replies import CLARIFY, INTRO, NOT_IN_RECORDS, PRIVATE_RECORDS, REFUSAL, _UNRELATED_NOTE
 from chatbot.chat_memory import get_session, SessionMemory
 from chatbot.question_checks import (
     _class_key_from_text,
@@ -89,9 +95,48 @@ def _build_chain(system_prompt: str):
     return prompt | get_chat_model() | StrOutputParser()
 
 
+_AI_CALLS: deque = deque()  # times of recent AI calls, to stay under the provider's per-minute limit
+
+
+def _ai_calls_last_minute() -> int:
+    cutoff = time.monotonic() - 60
+    while _AI_CALLS and _AI_CALLS[0] < cutoff:
+        _AI_CALLS.popleft()
+    return len(_AI_CALLS)
+
+
+def _ai_budget_left(reserve: int = 0) -> bool:
+    """True when another AI call fits in this minute, keeping `reserve` calls for chat/website answers."""
+    return _ai_calls_last_minute() + reserve < settings.ai_calls_per_minute
+
+
 def _run_chain(system_prompt: str, user_input: str, memory: SessionMemory) -> str:
     chain = _build_chain(system_prompt)
+    _AI_CALLS.append(time.monotonic())
     return chain.invoke({"input": user_input, "history": memory.messages})
+
+
+def _run_facts_chain(question: str, facts: str, memory: SessionMemory) -> str:
+    return _run_chain(
+        FACTS_PROMPT,
+        f"Question: {question}\n\nFACTS (from the university timetable and records):\n{facts}",
+        memory,
+    )
+
+
+def _ai_words_for_facts(question: str, facts: str, memory: SessionMemory, reserve: int) -> str | None:
+    """The AI's friendly wording of the facts, or None when it's unavailable or adds anything new."""
+    if not facts.strip() or len(facts) > _MAX_FACTS_FOR_AI or not _ai_budget_left(reserve):
+        return None
+    try:
+        reply = str(_run_facts_chain(question, facts, memory) or "").strip()
+    except Exception:
+        return None
+    problems = unsupported_details(reply, facts, question) if reply else ["empty reply"]
+    if problems:
+        print(f"[AI] wording rejected, using plain facts: {problems[:5]}")
+        return None
+    return reply
 
 
 def _run_general_chain(question: str, memory: SessionMemory) -> str:
@@ -219,10 +264,63 @@ HANDLERS = {
 _ENTITY_INTENTS = {"teacher", "teacher_secondary", "room", "timetable"}
 
 
+# Answers built from Firestore facts that the AI may reword (never exams, refusals or private data).
+_AI_WORDED_INTENTS = {
+    "teacher", "teacher_secondary", "timetable", "room", "rooms_all", "room_unknown",
+    "events", "announcements", "lostfound", "notifications", "catalog",
+}
+_MAX_FACTS_FOR_AI = 2500  # a whole week of every room is too long to reword safely; send it as is
+_FOLLOWUP_REF = re.compile(r"\b(those|these|them|which of|that one|in that list|from that)\b")
+
+
 def answer_question(question: str, session_id: str = "default", identity: dict | None = None) -> Dict[str, Any]:
+    """Facts from code, words from the AI.
+
+    The code finds the answer from Firestore exactly as before. For data answers
+    (timetable, teachers, rooms, events, notices) the AI then rewrites those facts
+    in friendly words. fact_check.py rejects any wording that adds a detail the
+    facts don't have, and then the plain fact text is sent instead.
+    """
+    memory = get_session(session_id)
+    followup = _followup_from_last_facts(question, memory)
+    if followup is not None:
+        memory.add_turn(question, followup)
+        return {"answer": followup, "intent": "followup"}
+    result = _answer_from_code(question, session_id, identity)
+    return _with_ai_wording(question, result, memory)
+
+
+def _followup_from_last_facts(question: str, memory: SessionMemory) -> str | None:
+    """'Which of those are labs?' is answered from the last data answer, not routed by keywords."""
+    if not memory.last_facts or not _FOLLOWUP_REF.search(question.lower()) or _class_key_from_text(question):
+        return None
+    return _ai_words_for_facts(question, memory.last_facts, memory, reserve=0)
+
+
+def _with_ai_wording(question: str, result: Dict[str, Any], memory: SessionMemory) -> Dict[str, Any]:
+    if result.get("intent") not in _AI_WORDED_INTENTS:
+        return result
+    answer = result.get("answer")
+    note = ""
+    if isinstance(answer, dict):
+        note = str(answer.get("note") or "")
+        facts = card_to_text({key: value for key, value in answer.items() if key != "note"})
+    else:
+        facts = str(answer or "")
+        if _UNRELATED_NOTE in facts:
+            facts, note = facts.replace(_UNRELATED_NOTE, "").strip(), _UNRELATED_NOTE
+    memory.last_facts = facts
+    # Keep 2 calls a minute free for greetings and website questions.
+    reply = _ai_words_for_facts(question, facts, memory, reserve=2)
+    if reply is None:
+        return result
+    return {"answer": reply + (f"\n\n{note}" if note else ""), "intent": result["intent"]}
+
+
+def _answer_from_code(question: str, session_id: str = "default", identity: dict | None = None) -> Dict[str, Any]:
     university_part = _university_portion(question)
     if university_part:
-        result = answer_question(university_part, session_id=session_id, identity=identity)
+        result = _answer_from_code(university_part, session_id=session_id, identity=identity)
         return _with_unrelated_note(result)
     memory = get_session(session_id)
     greeting_or_help = role_reply(question, identity)

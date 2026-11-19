@@ -21,6 +21,46 @@ from chatbot.question_checks import (
 )
 
 
+_ABOUT_TEACHER = re.compile(
+    # Not a bare "about": "what about Tuesday?" is a follow-up for another day.
+    r"\b(who is|who's|whos|tell me about|know about|info(rmation)? (about|on|of)|details (of|about)|introduce)\b"
+)
+_NAME_ONLY_WORDS = {"sir", "madam", "maam", "dr", "mr", "ms", "miss", "prof", "professor", "teacher", "the", "is", "who"}
+
+
+def _asks_about_teacher(q_lower: str, teacher: str) -> bool:
+    """'who is kamran', 'tell me about Sir Kamran', or just the name: the person, not one day's slots."""
+    if _ABOUT_TEACHER.search(q_lower):
+        return True
+    name_words = {w for w in re.findall(r"[a-z]+", teacher.lower())}
+    left = [w for w in re.findall(r"[a-z]+", q_lower) if w not in name_words and w not in _NAME_ONLY_WORDS]
+    # Only partial name words left ("kamran" for "Kamran Ali") still means just the name.
+    return all(any(n.startswith(w) or w.startswith(n) for n in name_words) for w in left)
+
+
+def teacher_profile(teacher: str, question: str) -> dict:
+    """Everything the timetable says about one teacher: subjects, classes, days, today, next class."""
+    rows = tt.get_teacher_classes(teacher, tt.WEEK_DAYS)
+    subjects: dict[str, list[str]] = {}
+    for row in rows:
+        classes = subjects.setdefault(str(row.get("subject") or "").strip(), [])
+        if row.get("class") and row["class"] not in classes:
+            classes.append(row["class"])
+    today = tt.today_name()
+    q_words = set(re.findall(r"[a-z]+", question.lower()))
+    full_name_typed = all(w in q_words for w in re.findall(r"[a-z]+", teacher.lower()) if len(w) > 2)
+    return {
+        "type": "teacher_profile",
+        "teacher": teacher,
+        "confirm_name": not full_name_typed,
+        "subjects": [{"subject": s, "classes": c} for s, c in subjects.items() if s],
+        "days": [d for d in tt.WEEK_DAYS if any(r["day"] == d for r in rows)],
+        "today": today,
+        "today_classes": [r for r in rows if r["day"] == today],
+        "next_class": tt.find_next_teacher_class(teacher),
+    }
+
+
 def _subject_followup(question: str, memory: SessionMemory) -> Any:
     if not memory.last_subjects or not re.search(r"\b(that|this|the) subject\b", question.lower()):
         return None
@@ -77,6 +117,9 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         return text
 
     memory.last_teacher = teacher
+
+    if _asks_about_teacher(q_lower, teacher):
+        return teacher_profile(teacher, question)
 
     if "next class" in q_lower:
         return {"type": "teacher_next_class", "teacher": teacher,

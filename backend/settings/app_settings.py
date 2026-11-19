@@ -49,6 +49,9 @@ class Settings:
     rate_limit: str = _env("RATE_LIMIT", "20/minute")
     # /ask ceiling for everyone behind one network address (campus Wi-Fi, Docker).
     rate_limit_shared: str = _env("RATE_LIMIT_SHARED", "200/minute")
+    # AI calls allowed per minute by the provider (Cerebras key: 5). Rewording data answers
+    # only uses spare calls, so greetings and website questions keep working.
+    ai_calls_per_minute: int = int(_env("AI_CALLS_PER_MINUTE", "5"))
 
     # Comma-separated allowed origins. "*" (default) = open, for dev.
     # For production set e.g.  CORS_ORIGINS=https://myapp.com,https://admin.myapp.com

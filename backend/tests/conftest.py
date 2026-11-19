@@ -105,3 +105,6 @@ def _offline_timetable(request, monkeypatch):
         raise RuntimeError("model disabled in tests")
 
     monkeypatch.setattr(answer_pipeline, "_run_general_chain", _model_unavailable)
+    # Data answers are reworded by the model too; tests see the plain facts unless they fake a reply.
+    monkeypatch.setattr(answer_pipeline, "_run_facts_chain", _model_unavailable)
+    answer_pipeline._AI_CALLS.clear()

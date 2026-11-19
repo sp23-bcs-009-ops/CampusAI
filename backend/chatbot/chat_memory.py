@@ -27,6 +27,7 @@ class SessionMemory:
     last_catalog_metric: Optional[str] = None
     last_catalog_items: List[str] = field(default_factory=list)
     last_day_meetings: List[dict] = field(default_factory=list)
+    last_facts: str = ""  # plain-text facts of the last data answer, for "which of those...?"
 
     def add_turn(self, question: str, answer: Any) -> None:
         self.messages.append(HumanMessage(content=question))

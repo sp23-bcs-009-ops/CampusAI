@@ -217,6 +217,32 @@ def card_to_text(card: dict) -> str:
     elif kind == "next_class":
         lines = [_next_line(f"The next class for {card.get('class')}", card.get("class_info"))]
 
+    elif kind == "teacher_profile":
+        name = card.get("teacher")
+        lines = [f"Do you mean {name}?"] if card.get("confirm_name") else []
+        subjects = card.get("subjects") or []
+        if not subjects:
+            lines.append(f"👨‍🏫 {name} has no classes in the current timetable.")
+        else:
+            lines.append(f"👨‍🏫 {name} teaches:")
+            lines += [f"• {s['subject']} — {_join(s.get('classes'))}" if _join(s.get("classes")) else f"• {s['subject']}"
+                      for s in subjects]
+            lines.append("Teaching days: " + ", ".join(card.get("days") or []))
+            today_rows = card.get("today_classes") or []
+            if today_rows:
+                lines.append(f"Today ({card.get('today')}):")
+                lines += [_meeting_line(r, include_class=True) for r in today_rows]
+            else:
+                lines.append(f"Today ({card.get('today')}): no classes.")
+            nxt = card.get("next_class") or {}
+            if nxt and nxt.get("classes"):
+                first = nxt["classes"][0]
+                room = _known(first.get("room"))
+                lines.append(
+                    f"Next class: {nxt.get('day')} {_time(nxt.get('slot'))}, {first.get('subject')} for "
+                    f"{first.get('class')}" + (f" in {room}" if room else "") + "."
+                )
+
     elif kind == "teacher_next_class":
         info = card.get("class_info") or {}
         if not info:

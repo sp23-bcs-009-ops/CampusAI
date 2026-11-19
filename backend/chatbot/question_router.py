@@ -133,6 +133,13 @@ def route(question: str, memory: SessionMemory, identity: dict | None = None) ->
     if teacher and not _teacher_name_actually_mentioned(question, teacher):
         teacher = None
 
+    # "When is he free on Monday?" / "his classes" → the teacher from the last answer.
+    if (
+        not teacher and not cls and not room and memory.last_teacher
+        and re.search(r"\b(he|him|his|she|her)\b", q_lower)
+    ):
+        teacher = memory.last_teacher
+
     # ── Follow-up resolution using entity memory ────────────────
     # "what about tuesday?" / "and on friday?" → reuse last entity.
     # A new name, room, or class code must not inherit the previous entity
