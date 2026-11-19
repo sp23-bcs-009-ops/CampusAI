@@ -214,18 +214,21 @@ def extract_class_from_sentence(sentence: str, known_keys: list[str]) -> str | N
         Matching timetable key or None
     """
     # Punctuation such as "BCS-1?" must not hide the class token.
+    # Keys compare without case: "BS(ENGLISH)-VI" is the timetable's "BS(English)-VI".
+    by_upper = {key.upper(): key for key in known_keys}
     words = re.findall(r"[A-Za-z0-9()&.+\-]+", sentence or "")
     for span_len in range(min(6, len(words)), 0, -1):
         for i in range(len(words) - span_len + 1):
             span = ' '.join(words[i:i + span_len])
             key = normalize_to_key(span)
-            if key and key in known_keys:
-                return key
+            if key and key.upper() in by_upper:
+                return by_upper[key.upper()]
 
     # ── Direct exact match against known keys (case-insensitive) ──
-    upper_sentence = sentence.upper()
-    for key in known_keys:
-        if key.upper() in upper_sentence:
+    # Longest first, and the roman numeral must end there: "BS(English)-V" is not in "BS(English)-VI".
+    upper_sentence = (sentence or "").upper()
+    for key in sorted(known_keys, key=len, reverse=True):
+        if re.search(re.escape(key.upper()) + r"(?![IVX])", upper_sentence):
             return key
 
     return None

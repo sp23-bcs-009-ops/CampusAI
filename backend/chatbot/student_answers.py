@@ -391,7 +391,7 @@ def _student_events(question: str) -> str | None:
     return " ".join(lines)
 
 
-_MY_SUBJECT_TEACHER = re.compile(r"\bmy ([a-z0-9 .&()-]+?) (teacher|sir|madam|maam|instructor)\b")
+_MY_SUBJECT_TEACHER = re.compile(r"\bmy ([a-z0-9 .&()/,-]+?) (teacher|sir|madam|maam|instructor)\b")
 
 
 def _student_named_teacher(question: str, identity: dict, memory: SessionMemory):

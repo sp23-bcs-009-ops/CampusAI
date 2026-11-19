@@ -38,7 +38,7 @@ def _record_kind(question: str) -> str | None:
     if ("lost" in q and "found" in q) or any(
         phrase in q for phrase in ("lost item", "found item")
     ) or re.search(
-        r"\b(anyone|someone|somebody) (found|seen)\b|\bfound (a|an|my|any)\b|"
+        r"\b(anyone|someone|somebody) (found|seen|find)\b|\bfound (a|an|my|any)\b|"
         r"\b(lost|misplaced) (my|a|an)\b|\bi lost\b",
         q,
     ):

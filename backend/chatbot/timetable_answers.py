@@ -479,7 +479,8 @@ def handle_timetable(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         return f"I could not find a lab meeting for {cls} on {display_day}{suffix} in the current timetable."
     when = " (tomorrow)" if re.search(r"\b(tomorrow|kal)\b", question.lower()) else (
         " (today)" if re.search(r"\b(today|aaj)\b", question.lower()) else "")
-    if re.search(r"\b(my|i|me|mine|mera|meri|mere)\b", question.lower()):
+    without_codes = re.sub(r"\b[a-z&]+\s*\([^)]*\)\s*-\s*[ivx]+\b|\b[a-z]+\s*-\s*[ivx\d]+\b", " ", question.lower())
+    if re.search(r"\b(my|i|me|mine|mera|meri|mere)\b", without_codes):
         return f"You have no classes on {display_day}{when}{suffix}."
     return f"{cls} has no classes on {display_day}{when}{suffix}."
 
@@ -610,7 +611,9 @@ def _own_subject_rows(question: str, key: str) -> list[dict]:
         return []
     rows = []
     for row in tt.get_class_week_schedule(key):
-        base = _base_subject(str(row.get("subject") or ""))
+        # Clean the subject the same way as the question ("business/aict" → "business aict").
+        base = " ".join(w for w in re.findall(r"[a-z0-9]+", _base_subject(str(row.get("subject") or "")))
+                        if w not in _SUBJECT_STOP)
         initials = "".join(word[0] for word in re.findall(r"[a-z]+", base))
         if (wanted == initials
                 or (len(wanted) >= 4 and fuzz.partial_ratio(wanted, base) >= 88)

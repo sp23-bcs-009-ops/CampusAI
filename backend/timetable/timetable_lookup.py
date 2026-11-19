@@ -311,13 +311,21 @@ def teacher_word_matches(question: str) -> list:
     words = [w for w in _clean_name_query(question).split() if len(w) >= 3]
     if not words:
         return []
-    matches = []
+    typed = " ".join(words)
+    exact, phrase, fuzzy = [], [], []
     for teacher in sorted(ALL_TEACHERS):
         name = re.sub(r"\b(sir|maam|miss|mr|ms|dr|professor|prof|visiting)\b", " ", teacher.lower())
         name_words = [w for w in re.findall(r"[a-z]+", name) if len(w) >= 3]
-        if name_words and all(max(fuzz.ratio(w, n) for n in name_words) >= 85 for w in words):
-            matches.append(teacher)
-    return matches
+        if not name_words:
+            continue
+        if " ".join(name_words) in typed:
+            phrase.append(teacher)  # the whole name, in order: "faisal shahzad"
+        if all(w in name_words for w in words):
+            exact.append(teacher)
+        elif all(max(fuzz.ratio(w, n) for n in name_words) >= 85 for w in words):
+            fuzzy.append(teacher)
+    # Best evidence first: the full name in order, then exact words, then typos.
+    return phrase or exact or fuzzy
 
 
 def teacher_name_candidates(question):
@@ -490,7 +498,7 @@ def detect_room(question: str):
     # We try all contiguous n-grams (1..4 words) to catch "cs c lab 1"
     words = re.findall(r'[a-z0-9]+', question.lower())
     candidates = []
-    for size in range(1, 5):
+    for size in range(4, 0, -1):  # longest first: "ee c lab" must win over "lab"
         for i in range(len(words) - size + 1):
             candidates.append(' '.join(words[i:i+size]))
 
@@ -532,8 +540,8 @@ def detect_class(question):
 
     # ── 2. Exact substring match (case-insensitive) ─────────────
     q_upper = question.upper()
-    for cls in classes:
-        if cls.upper() in q_upper:
+    for cls in sorted(classes, key=len, reverse=True):
+        if re.search(re.escape(cls.upper()) + r"(?![IVX])", q_upper):  # "-V" is not "-VI"
             return cls
 
     # Do not fuzzy-match the whole sentence. A cutoff that is low enough to
