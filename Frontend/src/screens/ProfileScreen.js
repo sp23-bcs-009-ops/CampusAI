@@ -185,7 +185,7 @@ export default function ProfileScreen({
               <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
                 {Platform.OS === 'web'
                   ? 'My Class reminders are available in the mobile app.'
-                  : 'Control My Class and Class Notification alerts together.'}
+                  : 'Control My Class Notification Alerts'}
               </Text>
             </View>
             {Platform.OS !== 'web' && <TouchableOpacity

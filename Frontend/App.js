@@ -36,7 +36,11 @@ import { toSubjectName } from './src/utils/helpers';
 import { getDeveloperNow, getDeveloperViewUser, isDeveloperModeEnabled, setDeveloperRole } from './src/utils/developerMode';
 import { isArrangedClassMine, isStudentClassSelected } from './src/utils/classOwnership';
 import { getTeacherAssignments, getTeacherNames } from './src/utils/teacherPerspective';
-import { ensureNotificationPermissionAsync } from './src/utils/pushNotifications';
+import {
+  ensureNotificationPermissionAsync,
+  getExactReminderPermissionAsync,
+  requestExactReminderPermissionAsync,
+} from './src/utils/pushNotifications';
 import { syncMyClassLocalNotifications } from './src/utils/myClassNotifications';
 import {
   buildUnifiedLTPeriodSlots,
@@ -147,6 +151,7 @@ export default function App() {
   const [navStart, setNavStart] = useState(1);
   const navScrollRef = useRef(null);
   const navInitialised = useRef(false);
+  const exactAlarmPrompted = useRef(false);
   const { width: windowWidth } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && windowWidth >= 1024;
 
@@ -155,11 +160,12 @@ export default function App() {
   const isGuest = viewUser?.type === 'guest';
   const staffAccess = hasStaffRole(viewUser);
   const navItems = isGuest ? GUEST_NAV_TABS : NAV_TABS;
-  const maxNavStart = Math.max(0, navItems.length - 3);
+  const showAllNativeTabs = Platform.OS !== 'web';
+  const maxNavStart = showAllNativeTabs ? 0 : Math.max(0, navItems.length - 3);
   const navStartClamped = Math.min(navStart, maxNavStart);
 
-  const navViewportWidth = Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
-  const navItemWidth = navViewportWidth / Math.min(3, Math.max(1, navItems.length));
+  const navViewportWidth = showAllNativeTabs ? windowWidth : Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
+  const navItemWidth = navViewportWidth / (showAllNativeTabs ? Math.max(1, navItems.length) : Math.min(3, Math.max(1, navItems.length)));
   const [wallClockNow, setWallClockNow] = useState(new Date());
   const now = getDeveloperNow(wallClockNow, user);
   const emergency = useEmergencyAnnouncements();
@@ -445,8 +451,7 @@ export default function App() {
     let active = true;
     const sync = async () => {
       if (screen !== 'main') return;
-      if (isDeveloperRoleSimulation) return;
-      if (!user || user.type === 'guest') {
+      if (!user || !viewUser || viewUser.type === 'guest') {
         await syncMyClassLocalNotifications({ enabled: false });
         return;
       }
@@ -456,14 +461,43 @@ export default function App() {
       }
       if (timetableLoading || schedule.loading) return;
 
+      if (Platform.OS === 'android' && !exactAlarmPrompted.current) {
+        try {
+          const exactAlarmAllowed = await getExactReminderPermissionAsync();
+          if (!exactAlarmAllowed) {
+            exactAlarmPrompted.current = true;
+            Alert.alert(
+              'Allow exact class reminders',
+              'Android requires Alarms and reminders access for alerts at 10 minutes before class and at the start time. You can allow it in the next settings screen.',
+              [
+                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Open settings',
+                  onPress: () => {
+                    requestExactReminderPermissionAsync()
+                      .then(() => sync())
+                      .catch(error => console.warn('Could not open exact alarm settings.', error));
+                  },
+                },
+              ],
+            );
+          }
+        } catch (error) {
+          exactAlarmPrompted.current = true;
+          console.warn('Could not check exact alarm access.', error);
+        }
+      }
+
       const activeTimetable = schedule.mode === 'exam'
         ? examWithOwnership.timetables
         : schedule.mode === 'regular' ? timetable : {};
       const result = await syncMyClassLocalNotifications({
         enabled: true,
         uid: user.uid,
-        dept: user.dept,
-        semester: user.semester,
+        role: viewUser.type,
+        dept: viewUser.dept,
+        semester: viewUser.semester,
+        teacherName: viewUser.fullName || viewUser.name,
         mode: schedule.mode,
         timetable: activeTimetable,
         now: new Date(),
@@ -476,8 +510,7 @@ export default function App() {
     sync().catch(error => console.warn('Failed to sync class reminders.', error));
     const subscription = AppState.addEventListener('change', state => {
       if (!active || state !== 'active') return;
-      if (isDeveloperRoleSimulation) return;
-      if (screen !== 'main' || !user || user.type === 'guest') return;
+      if (screen !== 'main' || !user || viewUser?.type === 'guest') return;
 
       Promise.all([
         reloadTT(),
@@ -514,7 +547,15 @@ export default function App() {
     user?.fullName,
     user?.name,
     user?.developerRole,
+    user?.developerModeEnabled,
+    user?.developerStudentDept,
+    user?.developerStudentSemester,
     user?.developerTeacherName,
+    viewUser?.type,
+    viewUser?.dept,
+    viewUser?.semester,
+    viewUser?.fullName,
+    viewUser?.name,
     JSON.stringify(user?.subjects || []),
     schedule.mode,
     schedule.loading,

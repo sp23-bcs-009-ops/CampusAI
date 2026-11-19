@@ -82,11 +82,13 @@ export function karachiWallTimeToDate(dateKey, time) {
 }
 
 
-function matchesUser(slot, { dept, semester }) {
+function matchesUser(slot, { role, dept, semester }) {
+  if (slot?.isMine !== true) return false;
+  if (role === 'teacher') return true;
   const slotDept = normalize(slot?._dept || slot?.dept || slot?.department);
   const slotSemester = Number(slot?.semester ?? slot?.sem);
   if (slotDept !== normalize(dept) || slotSemester !== Number(semester)) return false;
-  return slot?.isMine === true;
+  return true;
 }
 
 function getClassIdentity(slot, room, mode, dateKey, uid) {
@@ -131,13 +133,14 @@ function createReminder(slot, room, mode, dateKey, timing, scheduledAtMs, uid) {
 
 export function buildMyClassReminders({
   uid,
+  role = 'student',
   dept,
   semester,
   mode,
   timetable = {},
   now = new Date(),
 }) {
-  if (!uid || !dept || !semester || (mode !== 'regular' && mode !== 'exam')) return [];
+  if (!uid || (role !== 'teacher' && (!dept || !semester)) || (mode !== 'regular' && mode !== 'exam')) return [];
 
   const nowMs = now.getTime();
   const windowEndMs = nowMs + CLASS_NOTIFICATION_WINDOW_MS;
@@ -148,7 +151,7 @@ export function buildMyClassReminders({
   for (let dateKey = startDate; dateKey <= endDate; dateKey = addCalendarDays(dateKey, 1)) {
     for (const [room, slots] of Object.entries(timetable || {})) {
       for (const slot of Array.isArray(slots) ? slots : []) {
-        if (!matchesUser(slot, { dept, semester })) continue;
+        if (!matchesUser(slot, { role, dept, semester })) continue;
 
         if (mode === 'regular') {
           const slotDay = normalize(slot.day).slice(0, 3);

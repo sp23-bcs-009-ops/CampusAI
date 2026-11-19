@@ -18,7 +18,8 @@
       },
       "package": "edu.cuiatk.campusai",
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "plugins": [

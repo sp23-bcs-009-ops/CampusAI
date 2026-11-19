@@ -56,6 +56,7 @@ async function syncMyClassNotificationsNow(options) {
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: new Date(reminder.scheduledAtMs),
+        delivery: 'bestEffort',
         ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
       },
     });

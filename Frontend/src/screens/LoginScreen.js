@@ -65,6 +65,7 @@ export default function LoginScreen({ onLogin, onGuest }) {
     const dept = getDept(email);
     return {
       email, type: selType || 'student',
+      notificationEnabled: true,
       name: email.split('@')[0],
       fullName, dob, phone: '',
       semester: (selType === 'student' && isRepeater) ? repeatSem : getSemester(email),
@@ -400,7 +401,7 @@ const styles = StyleSheet.create({
   roleSub:     { fontSize: 11, color: '#9B7EF8' },
   roleBadge:   { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14, alignItems: 'flex-start' },
 
-  authCard:    { backgroundColor: '#f8f6f6d8', borderRadius: 18 , marginHorizontal: 18, padding: 18, paddingBottom: 50, marginBottom: 20, boxShadow: '0 6px 12px rgba(26, 15, 74, 0.08)', elevation: 3 },
+  authCard:    { backgroundColor: '#f8f6f6d8', borderRadius: 18 , marginHorizontal: 18, padding: 18, paddingBottom: 20, marginBottom: 20, boxShadow: '0 6px 12px rgba(26, 15, 74, 0.08)', elevation: 3 },
   divider:     { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   divLine:     { flex: 1, height: 1, backgroundColor: '#E2E0F5' },
   divText:     { marginHorizontal: 10, fontSize: 11, color: '#B0A8D8', fontWeight: '600' },
