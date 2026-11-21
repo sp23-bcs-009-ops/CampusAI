@@ -1,4 +1,4 @@
-import { FS_BASE, STORAGE_BASE, FIREBASE_CONFIG } from './config';
+import { FS_BASE, FIREBASE_CONFIG } from './config';
 
 const AUTH_BASE = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const API_KEY   = FIREBASE_CONFIG.apiKey;
@@ -9,32 +9,10 @@ const API_KEY   = FIREBASE_CONFIG.apiKey;
 // Tokens are set automatically on sign-in/up and refreshed via refreshToken.
 let ID_TOKEN = null;
 let REFRESH_TOKEN = null;
-let ID_TOKEN_EXPIRES_AT = 0; // ms since epoch
-
-// Firebase ID tokens last one hour. Read the expiry from the token itself;
-// if it can't be read, assume 55 minutes from now.
-function tokenExpiry(idToken) {
-  try {
-    const part = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = part + '='.repeat((4 - (part.length % 4)) % 4);
-    const { exp } = JSON.parse(atob(padded));
-    if (exp) return exp * 1000;
-  } catch {}
-  return Date.now() + 55 * 60 * 1000;
-}
 
 export function setAuthToken(idToken, refreshToken = null) {
   ID_TOKEN = idToken || null;
-  ID_TOKEN_EXPIRES_AT = idToken ? tokenExpiry(idToken) : 0;
   if (refreshToken) REFRESH_TOKEN = refreshToken;
-}
-
-/** The current ID token, renewed first if it expires within 5 minutes. */
-export async function getFreshIdToken() {
-  if (ID_TOKEN && REFRESH_TOKEN && Date.now() > ID_TOKEN_EXPIRES_AT - 5 * 60 * 1000) {
-    await refreshAuthToken(REFRESH_TOKEN);
-  }
-  return ID_TOKEN;
 }
 
 export function getAuthTokens() {
@@ -44,7 +22,6 @@ export function getAuthTokens() {
 export function clearAuthToken() {
   ID_TOKEN = null;
   REFRESH_TOKEN = null;
-  ID_TOKEN_EXPIRES_AT = 0;
 }
 
 /** Exchange a refresh token for a fresh ID token (called on app restart). */
@@ -89,18 +66,6 @@ export async function authSignIn(email, password) {
   return d;
 }
 
-// Development-only test session; Firebase Anonymous Auth avoids requiring a real email.
-export async function authAnonymousSignIn() {
-  const r = await fetch(`${AUTH_BASE}:signUp?key=${API_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ returnSecureToken: true }),
-  });
-  const d = await r.json();
-  if (d.error) throw new Error(d.error.message);
-  setAuthToken(d.idToken, d.refreshToken);
-  return d;
-}
-
 export async function authSendVerification(idToken) {
   const r = await fetch(`${AUTH_BASE}:sendOobCode?key=${API_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -111,19 +76,13 @@ export async function authSendVerification(idToken) {
   return d;
 }
 
-export async function authGoogleSignIn(idToken) {
-  const r = await fetch(`${AUTH_BASE}:signInWithIdp?key=${API_KEY}`, {
+export async function authSendPasswordReset(email) {
+  const r = await fetch(`${AUTH_BASE}:sendOobCode?key=${API_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      postBody: `id_token=${idToken}&providerId=google.com`,
-      requestUri: 'http://localhost',
-      returnIdpCredential: true,
-      returnSecureToken: true,
-    }),
+    body: JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
   });
   const d = await r.json();
   if (d.error) throw new Error(d.error.message);
-  setAuthToken(d.idToken, d.refreshToken);
   return d;
 }
 
@@ -176,13 +135,21 @@ function deserialise(fields) {
   return out;
 }
 
-export async function fsGet(path) {
+export async function fsGet(path, { throwOnError = false, allowNotFound = false } = {}) {
   try {
     const r = await fetch(`${FS_BASE}/${path}`, { headers: authHeaders() });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      if (throwOnError && !(allowNotFound && r.status === 404)) {
+        throw new Error(await firestoreErrorMessage(r));
+      }
+      return null;
+    }
     const d = await r.json();
     return deserialise(d.fields || {});
-  } catch { return null; }
+  } catch (error) {
+    if (throwOnError) throw error;
+    return null;
+  }
 }
 
 export async function fsSet(path, data) {
@@ -246,80 +213,8 @@ export async function fsList(collection, { throwOnError = false } = {}) {
   }
 }
 
-/** Merge a large teacher seed list while keeping legacy timetable schedules intact. */
-export async function fsBulkUpsertTeachers(records, onProgress = () => {}) {
-  const existingDocs = await fsList('teachers', { throwOnError: true });
-  const byName = new Map(existingDocs.filter(doc => doc.name).map(doc => [
-    String(doc.name).trim().toLocaleLowerCase(), doc,
-  ]));
-  const usedIds = new Map(existingDocs.map(doc => [doc._docId, String(doc.name || '').trim().toLocaleLowerCase()]));
-  const writes = [];
-
-  for (const entry of records || []) {
-    const name = String(entry?.name || '').trim();
-    if (!name) continue;
-    const key = name.toLocaleLowerCase();
-    const prior = byName.get(key);
-    let docId = prior?._docId || name.replace(/[^\w()&.-]+/g, '_').replace(/^_+|_+$/g, '');
-    if (!docId) docId = `teacher_${writes.length}`;
-    if (!prior && usedIds.has(docId) && usedIds.get(docId) !== key) {
-      const baseId = docId;
-      let suffix = 2;
-      while (usedIds.has(`${baseId}_${suffix}`)) suffix += 1;
-      docId = `${baseId}_${suffix}`;
-    }
-    usedIds.set(docId, key);
-
-    const fields = { ...(prior || {}) };
-    delete fields._docId;
-    delete fields.email;
-    delete fields.phone;
-    delete fields.accountEmails;
-    fields.name = prior?.name || name;
-    fields.department = String(entry.department || 'CS').trim();
-    fields.position = String(entry.position || '').trim();
-    fields.schedule = Array.isArray(prior?.schedule) ? prior.schedule : [];
-    fields.classCount = Number(prior?.classCount || 0);
-    fields.updatedAt = new Date().toISOString();
-    writes.push({ docId, fields });
-  }
-
-  const batchSize = 5;
-  for (let offset = 0; offset < writes.length; offset += batchSize) {
-    const batch = writes.slice(offset, offset + batchSize);
-    await Promise.all(batch.map(({ docId, fields }) =>
-      fsSet(`teachers/${encodeURIComponent(docId)}`, fields)
-    ));
-    onProgress({ completed: Math.min(offset + batch.length, writes.length), total: writes.length });
-  }
-  return { count: writes.length };
-}
-
-export async function storageUpload(storagePath, fileUri, mimeType = 'application/pdf') {
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-  const uploadUrl = `${STORAGE_BASE}?uploadType=media&name=${encodeURIComponent(storagePath)}`;
-  const r = await fetch(uploadUrl, {
-    method: 'POST', headers: authHeaders({ 'Content-Type': mimeType }), body: blob,
-  });
-  if (!r.ok) {
-    const errorText = await r.text();
-    console.error("Firebase Storage Upload Error:", r.status, errorText);
-    throw new Error('Storage upload failed: ' + errorText);
-  }
-  const d = await r.json();
-  return `${STORAGE_BASE}/${encodeURIComponent(d.name)}?alt=media`;
-}
-
 export async function saveUserProfile(email, profile) {
   await fsSet(`users/${email.replace(/\./g, '_')}`, profile);
-}
-
-// Saves only the given profile fields (e.g. fullName) and leaves every other field as it is.
-// The chatbot reads the profile from Firestore, so My Profile edits must reach it too.
-export async function updateUserProfileFields(email, fields) {
-  if (!email || !fields || Object.keys(fields).length === 0) return;
-  await fsUpdate(`users/${email.replace(/\./g, '_')}`, fields);
 }
 
 export async function getUserProfile(email) {

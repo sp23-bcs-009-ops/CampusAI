@@ -38,3 +38,15 @@ export function ensureNotificationPermissionAsync() {
   });
   return permissionRequest;
 }
+
+export async function getExactReminderPermissionAsync() {
+  if (Platform.OS !== 'android') return true;
+  const permission = await Notifications.getExactAlarmPermissionsAsync();
+  return permission.granted;
+}
+
+export async function requestExactReminderPermissionAsync() {
+  if (Platform.OS !== 'android') return true;
+  const permission = await Notifications.requestExactAlarmPermissionsAsync();
+  return permission.granted;
+}

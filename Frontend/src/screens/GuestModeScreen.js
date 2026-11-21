@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, Linking,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { getAiServerUrl } from '../constants/network';
-import { loadChats, newSessionId, saveChat } from '../utils/chatHistory';
+import { saveChat } from '../utils/chatHistory';
+import useChatSession from '../hooks/useChatSession';
 import ChatHistorySidebar from '../components/ChatHistorySidebar';
 
 // ─── Guest-only palette (teal, intentionally distinct from the purple AI Chat) ──
@@ -62,21 +63,13 @@ function publicAnswerText(answer) {
 }
 
 export default function GuestModeScreen({ dark, tab = 'chat', onTabChange, onExitGuest }) {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [savedChats, setSavedChats] = useState([]);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const scrollViewRef = useRef();
-  const messagesRef = useRef([]);
   const guestUser = { type: 'guest' };
-
-  const sessionIdRef = useRef(newSessionId('guest'));
-  const [activeChatId, setActiveChatId] = useState(sessionIdRef.current);
-
-  useEffect(() => {
-    loadChats(guestUser).then(setSavedChats).catch(() => {});
-  }, []);
+  const {
+    messages, setMessages, input, setInput, loading, setLoading,
+    savedChats, setSavedChats, historyOpen, setHistoryOpen,
+    messagesRef, sessionIdRef, activeChatId, startNewChat, openChat,
+  } = useChatSession(guestUser, 'guest');
+  const scrollViewRef = useRef();
 
   // ── Theme tokens (teal guest theme) ────────────────────────────────────────
   const bg       = dark ? '#071A1C' : '#F1FBFB';
@@ -238,25 +231,6 @@ export default function GuestModeScreen({ dark, tab = 'chat', onTabChange, onExi
       </View>
     </ScrollView>
   );
-
-  const startNewChat = () => {
-    const nextId = newSessionId('guest');
-    sessionIdRef.current = nextId;
-    setActiveChatId(nextId);
-    messagesRef.current = [];
-    setMessages([]);
-    setInput('');
-  };
-
-  const openChat = (chat) => {
-    if (!chat?.id) return;
-    sessionIdRef.current = chat.id;
-    setActiveChatId(chat.id);
-    const restored = Array.isArray(chat.messages) ? chat.messages : [];
-    messagesRef.current = restored;
-    setMessages(restored);
-    setInput('');
-  };
 
   // ── AI Chat tab ────────────────────────────────────────────────────────────
   const renderChat = () => (

@@ -1,5 +1,4 @@
-import { getClassMuteKey } from './classMutes.js';
-
+import { normalizeText as normalize } from './helpers.js';
 export const CAMPUS_TIME_ZONE = 'Asia/Karachi';
 export const CLASS_NOTIFICATION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const NOTIFICATION_ID_PREFIX = 'campusai_myclass_';
@@ -82,16 +81,14 @@ export function karachiWallTimeToDate(dateKey, time) {
   return dateKeyFromParts(localParts) === dateKey && localTime === time ? result : null;
 }
 
-function normalize(value) {
-  return String(value ?? '').trim().toLocaleLowerCase();
-}
 
-function matchesUser(slot, room, mode, { dept, semester, mutedClassKeys }) {
+function matchesUser(slot, { role, dept, semester }) {
+  if (slot?.isMine !== true) return false;
+  if (role === 'teacher') return true;
   const slotDept = normalize(slot?._dept || slot?.dept || slot?.department);
   const slotSemester = Number(slot?.semester ?? slot?.sem);
   if (slotDept !== normalize(dept) || slotSemester !== Number(semester)) return false;
-  if (slot?.isMine !== true || slot?.isMuted === true) return false;
-  return !mutedClassKeys.has(getClassMuteKey(slot, room, mode));
+  return true;
 }
 
 function getClassIdentity(slot, room, mode, dateKey, uid) {
@@ -136,18 +133,17 @@ function createReminder(slot, room, mode, dateKey, timing, scheduledAtMs, uid) {
 
 export function buildMyClassReminders({
   uid,
+  role = 'student',
   dept,
   semester,
   mode,
   timetable = {},
-  mutedClassKeys = [],
   now = new Date(),
 }) {
-  if (!uid || !dept || !semester || (mode !== 'regular' && mode !== 'exam')) return [];
+  if (!uid || (role !== 'teacher' && (!dept || !semester)) || (mode !== 'regular' && mode !== 'exam')) return [];
 
   const nowMs = now.getTime();
   const windowEndMs = nowMs + CLASS_NOTIFICATION_WINDOW_MS;
-  const mutedKeys = new Set(mutedClassKeys);
   const startDate = dateKeyFromParts(getDateParts(now));
   const endDate = dateKeyFromParts(getDateParts(new Date(windowEndMs)));
   const reminders = new Map();
@@ -155,7 +151,7 @@ export function buildMyClassReminders({
   for (let dateKey = startDate; dateKey <= endDate; dateKey = addCalendarDays(dateKey, 1)) {
     for (const [room, slots] of Object.entries(timetable || {})) {
       for (const slot of Array.isArray(slots) ? slots : []) {
-        if (!matchesUser(slot, room, mode, { dept, semester, mutedClassKeys: mutedKeys })) continue;
+        if (!matchesUser(slot, { role, dept, semester })) continue;
 
         if (mode === 'regular') {
           const slotDay = normalize(slot.day).slice(0, 3);

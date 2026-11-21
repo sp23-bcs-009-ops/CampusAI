@@ -10,7 +10,7 @@ function isCampusAiClassReminder(request) {
 }
 
 async function syncMyClassNotificationsNow(options) {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') {
     return { scheduled: 0, unsupportedPlatform: true };
   }
 
@@ -56,7 +56,8 @@ async function syncMyClassNotificationsNow(options) {
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date: new Date(reminder.scheduledAtMs),
-        channelId: 'default',
+        delivery: 'bestEffort',
+        ...(Platform.OS === 'android' ? { channelId: 'default' } : {}),
       },
     });
     scheduledCount += 1;

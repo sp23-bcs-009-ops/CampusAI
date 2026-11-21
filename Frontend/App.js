@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Alert, AppState, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions } from 'react-native';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Alert, AppState, View, Text, TouchableOpacity, StyleSheet, ScrollView, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Path } from 'react-native-svg';
@@ -7,12 +7,14 @@ import { C } from './src/constants/colors';
 import { NAV_TABS, GUEST_NAV_TABS, hasStaffRole } from './src/constants/config';
 import useTimetable from './src/hooks/useTimetable';
 import useNotifs from './src/hooks/useNotifs';
+import useLTPeriodSettings from './src/hooks/useLTPeriodSettings';
 import {
   clearAuthToken,
   getAuthTokens,
   getNotificationSettings,
   refreshAuthToken,
   saveNotificationSettings,
+  saveUserProfile,
   authGetUser,
 } from './src/firebase/firestore';
 
@@ -25,16 +27,27 @@ import ChatScreen from './src/screens/ChatScreen';
 import GuestModeScreen from './src/screens/GuestModeScreen';
 import InternalScreen from './src/screens/InternalScreen';
 import TeacherDirectoryScreen from './src/screens/TeacherDirectoryScreen';
-import SettingsScreen from './src/screens/SettingsScreen';
 import EmergencyAnnouncements from './src/components/EmergencyAnnouncements';
 import useEmergencyAnnouncements from './src/hooks/useEmergencyAnnouncements';
 import useScheduleMode from './src/hooks/useScheduleMode';
 import ScheduleModePicker from './src/components/ScheduleModePicker';
 import { buildClashingSubjectAliasMap, normalizeSubjectKey, resolveSubjectAlias } from './src/utils/clashingSubjectAliases';
-import { getDeveloperNow } from './src/utils/developerClock';
-import { getClassMuteKey } from './src/utils/classMutes';
-import { ensureNotificationPermissionAsync } from './src/utils/pushNotifications';
+import { toSubjectName } from './src/utils/helpers';
+import { getDeveloperNow, getDeveloperViewUser, isDeveloperModeEnabled, setDeveloperRole } from './src/utils/developerMode';
+import { isArrangedClassMine, isStudentClassSelected } from './src/utils/classOwnership';
+import { getTeacherAssignments, getTeacherNames } from './src/utils/teacherPerspective';
+import {
+  ensureNotificationPermissionAsync,
+  getExactReminderPermissionAsync,
+  requestExactReminderPermissionAsync,
+} from './src/utils/pushNotifications';
 import { syncMyClassLocalNotifications } from './src/utils/myClassNotifications';
+import {
+  buildUnifiedLTPeriodSlots,
+  applyLTPeriodSettingsToSlots,
+  applyLTPeriodSettingsToTimetable,
+  applyLTPeriodSettingsToTimetablesBySemester,
+} from './src/utils/ltPeriodSettings';
 
 const NAV_ICON_COLORS = {
   chat: { light: '#0284C7', dark: '#38BDF8' },
@@ -51,30 +64,35 @@ function localUserSettingsKey(user) {
   return identity ? `campusai_user_settings:${identity}` : null;
 }
 
+function withoutLegacyClassMuteSettings(user) {
+  const cleanUser = { ...user };
+  delete cleanUser.mutedClassKeys;
+  delete cleanUser.developerTeacherMutedClassKeys;
+  return cleanUser;
+}
+
 async function restoreLocalUserSettings(user) {
-  const key = localUserSettingsKey(user);
-  if (!key) return user;
+  const cleanUser = withoutLegacyClassMuteSettings(user);
+  const key = localUserSettingsKey(cleanUser);
+  if (!key) return cleanUser;
   const serialized = await AsyncStorage.getItem(key);
-  if (!serialized) return user;
+  if (!serialized) return cleanUser;
 
   let settings;
   try {
     settings = JSON.parse(serialized);
   } catch (error) {
     console.warn('Could not parse saved user settings.', error);
-    return user;
+    return cleanUser;
   }
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
     console.warn('Saved user settings have an unexpected format.');
-    return user;
+    return cleanUser;
   }
 
   return {
-    ...user,
+    ...cleanUser,
     staffRoleEnabled: settings.staffRoleEnabled === true,
-    mutedClassKeys: Array.isArray(settings.mutedClassKeys)
-      ? settings.mutedClassKeys.filter(value => typeof value === 'string')
-      : (user.mutedClassKeys || []),
   };
 }
 
@@ -86,33 +104,68 @@ function notificationProfileSettings(user) {
     role: user.type || '',
     displayName: user.fullName || user.name || '',
     subjects: JSON.stringify(Array.isArray(user.subjects) ? user.subjects : []),
-    mutedClassKeys: JSON.stringify(Array.isArray(user.mutedClassKeys) ? user.mutedClassKeys : []),
     updatedAt: new Date().toISOString(),
   };
+}
+
+function normaliseRoomId(roomId) {
+  const raw = String(roomId || '').trim();
+  if (!raw) return raw;
+  const ltMatch = raw.match(/LT\s*(\d+)/i);
+  if (ltMatch) return `LT${ltMatch[1]}`;
+  const labMatch = raw.match(/(?:C\.?\s*Lab|Lab)\s*(\d+)/i);
+  return labMatch ? `Lab${labMatch[1]}` : raw;
+}
+
+function withOwnership(slot, user, currentSem, subjectKeys, aliasMap) {
+  const normalized = { ...slot, subject: resolveSubjectAlias(slot.subject, aliasMap) };
+  let isMine = false;
+  if (user?.type === 'teacher') {
+    isMine = String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase()
+      === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase();
+  } else if (user?.type !== 'staff') {
+    isMine = isStudentClassSelected(normalized, {
+      dept: user?.dept,
+      semester: currentSem,
+      subjectKeys,
+    });
+  }
+  return { ...normalized, isMine };
+}
+
+function mapTimetableWithOwnership(timetable, user, currentSem, subjectKeys, aliasMap) {
+  return Object.fromEntries(Object.entries(timetable || {}).map(([room, slots]) => [
+    room,
+    (slots || []).map(slot => withOwnership(slot, user, currentSem, subjectKeys, aliasMap)),
+  ]));
 }
 
 export default function App() {
   const [screen, setScreen] = useState('login');
   const [user, setUser] = useState(null);
+  const viewUser = useMemo(() => getDeveloperViewUser(user), [user]);
+  const isDeveloperRoleSimulation = Boolean(user && isDeveloperModeEnabled(user));
   const [dark, setDark] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
-  const [emergencyOpenRequest, setEmergencyOpenRequest] = useState(0);
   const [officeTarget, setOfficeTarget] = useState(null);
   const [navStart, setNavStart] = useState(1);
   const navScrollRef = useRef(null);
   const navInitialised = useRef(false);
+  const exactAlarmPrompted = useRef(false);
   const { width: windowWidth } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && windowWidth >= 1024;
 
   // Guest mode: only Website AI + About Us are reachable — everything else
   // (Home, Class Notification, Teacher list, etc.) is blocked for guests.
-  const isGuest = user?.type === 'guest';
-  const staffAccess = hasStaffRole(user);
-  const navItems = isGuest ? GUEST_NAV_TABS : NAV_TABS.filter(tab => tab.key !== 'settings' || staffAccess);
-  const maxNavStart = Math.max(0, navItems.length - 3);
+  const isGuest = viewUser?.type === 'guest';
+  const staffAccess = hasStaffRole(viewUser);
+  const navItems = isGuest ? GUEST_NAV_TABS : NAV_TABS;
+  const showAllNativeTabs = Platform.OS !== 'web';
+  const maxNavStart = showAllNativeTabs ? 0 : Math.max(0, navItems.length - 3);
   const navStartClamped = Math.min(navStart, maxNavStart);
 
-  const navViewportWidth = Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
-  const navItemWidth = navViewportWidth / Math.min(3, Math.max(1, navItems.length));
+  const navViewportWidth = showAllNativeTabs ? windowWidth : Math.max(0, windowWidth - (maxNavStart > 0 ? 96 : 0));
+  const navItemWidth = navViewportWidth / (showAllNativeTabs ? Math.max(1, navItems.length) : Math.min(3, Math.max(1, navItems.length)));
   const [wallClockNow, setWallClockNow] = useState(new Date());
   const now = getDeveloperNow(wallClockNow, user);
   const emergency = useEmergencyAnnouncements();
@@ -123,7 +176,7 @@ export default function App() {
   useEffect(() => {
     if (isGuest) {
       if (activeTab !== 'chat' && activeTab !== 'about') setActiveTab('chat');
-    } else if (activeTab === 'about' || (activeTab === 'settings' && !staffAccess)) {
+    } else if (activeTab === 'about') {
       setActiveTab('home');
     }
   }, [isGuest, activeTab, staffAccess]);
@@ -200,30 +253,40 @@ export default function App() {
     persistAuthToken();
     setScreen('main');
   }
-  function handleUpdate(u, { persistNotificationPreferences = true } = {}) {
-    setUser(u);
-    AsyncStorage.setItem('campusai_user', JSON.stringify(u)).catch(() => { });
-    if (persistNotificationPreferences && u.uid) {
-      saveNotificationSettings(u.uid, notificationProfileSettings(u))
+  function handleUpdate(u, { persistNotificationPreferences = true, persistProfile = true } = {}) {
+    const cleanUser = withoutLegacyClassMuteSettings(u);
+    setUser(cleanUser);
+    AsyncStorage.setItem('campusai_user', JSON.stringify(cleanUser)).catch(() => { });
+    if (persistProfile && cleanUser.email && cleanUser.uid && cleanUser.type !== 'guest') {
+      saveUserProfile(cleanUser.email, cleanUser)
+        .catch(error => console.warn('Failed to sync user profile.', error));
+    }
+    if (persistNotificationPreferences && cleanUser.uid) {
+      saveNotificationSettings(cleanUser.uid, notificationProfileSettings(cleanUser))
         .catch(error => console.warn('Failed to sync notification preferences.', error));
     }
-    const settingsKey = localUserSettingsKey(u);
+    const settingsKey = localUserSettingsKey(cleanUser);
     if (settingsKey) {
       AsyncStorage.setItem(settingsKey, JSON.stringify({
-        staffRoleEnabled: u.staffRoleEnabled === true,
-        mutedClassKeys: Array.isArray(u.mutedClassKeys) ? u.mutedClassKeys : [],
+        staffRoleEnabled: cleanUser.staffRoleEnabled === true,
       })).catch(error => console.warn('Failed to save local user settings.', error));
     }
   }
   function handleRoleChange(type) {
-    handleUpdate({ ...user, type });
+    handleUpdate(setDeveloperRole(user, type), { persistNotificationPreferences: false });
   }
-  function handleToggleClassMute(slot, room, mode) {
-    const key = getClassMuteKey(slot, room, mode);
-    const muted = new Set(user?.mutedClassKeys || []);
-    if (muted.has(key)) muted.delete(key);
-    else muted.add(key);
-    handleUpdate({ ...user, mutedClassKeys: [...muted] });
+  function handleSelectDeveloperTeacher(name) {
+    handleUpdate({ ...user, developerTeacherName: name }, { persistNotificationPreferences: false });
+  }
+  function handleViewUserUpdate(updatedViewUser) {
+    if (isDeveloperRoleSimulation) {
+      handleUpdate({
+        ...user,
+        developerClock: updatedViewUser.developerClock,
+      }, { persistNotificationPreferences: false });
+      return;
+    }
+    handleUpdate(updatedViewUser);
   }
   async function handleToggleNotifications(enabled) {
     const uid = user?.uid;
@@ -275,9 +338,40 @@ export default function App() {
     meta: ttMeta,
     reload: reloadTT,
   } = useTimetable();
+  const ltPeriodSettings = useLTPeriodSettings();
+  const adjustedLectureSlotsByDepartmentSemester = useMemo(
+    () => Object.fromEntries(
+      Object.entries(lectureSlotsByDepartmentSemester).map(([key, slots]) => [
+        key,
+        applyLTPeriodSettingsToSlots(slots, ltPeriodSettings.settings),
+      ]),
+    ),
+    [lectureSlotsByDepartmentSemester, ltPeriodSettings.settings],
+  );
+  const adjustedLectureSlots = useMemo(
+    () => ltPeriodSettings.settings.durationMinutes
+      ? buildUnifiedLTPeriodSlots(adjustedLectureSlotsByDepartmentSemester, lectureSlots)
+      : applyLTPeriodSettingsToSlots(lectureSlots, ltPeriodSettings.settings),
+    [lectureSlots, adjustedLectureSlotsByDepartmentSemester, ltPeriodSettings.settings],
+  );
+  const adjustedTimetables = useMemo(
+    () => applyLTPeriodSettingsToTimetablesBySemester(
+      timetables,
+      adjustedLectureSlotsByDepartmentSemester,
+      ltPeriodSettings.settings,
+    ),
+    [timetables, adjustedLectureSlotsByDepartmentSemester, ltPeriodSettings.settings],
+  );
 
   // ── Notifs ────────────────────────────────────────────────────────────────
-  const { arrangedClasses, cancelledSlots } = useNotifs(lectureSlots);
+  const classNotifications = useNotifs(
+    adjustedLectureSlots,
+    screen === 'main' && !!user && user.type !== 'guest',
+  );
+  const { arrangedClasses, cancelledSlots, loadAllReservations } = classNotifications;
+  useEffect(() => {
+    if (screen === 'main' && user && user.type !== 'guest') loadAllReservations();
+  }, [screen, user?.uid, user?.type, loadAllReservations]);
 
   // Clock tick every minute
   useEffect(() => {
@@ -286,24 +380,10 @@ export default function App() {
   }, []);
 
   // ── isMine: mark slots belonging to the current user's subjects ───────────
-  function normaliseRoomId(roomId) {
-    const raw = String(roomId || '').trim();
-    if (!raw) return raw;
-
-    const ltMatch = raw.match(/LT\s*(\d+)/i);
-    if (ltMatch) return `LT${ltMatch[1]}`;
-
-    const labMatch = raw.match(/(?:C\.?\s*Lab|Lab)\s*(\d+)/i);
-    if (labMatch) return `Lab${labMatch[1]}`;
-
-    return raw;
-  }
-
-  const currentSem = user?.type === 'staff' ? null : Number(user?.semester || 7);
-  const currentDept = String(user?.dept || '').toLowerCase();
+  const currentSem = viewUser?.type === 'staff' ? null : Number(viewUser?.semester || 7);
+  const currentDept = String(viewUser?.dept || '').toLowerCase();
   const semSubjects = (currentSem ? (subjectsBySemester?.[currentSem] || subjectsList || []) : [])
     .filter(subject => !subject?.dept || !currentDept || String(subject.dept).toLowerCase() === currentDept);
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
   const semSubjectNames = Array.from(new Set(semSubjects.map(toSubjectName).filter(Boolean)));
   const availableSubjectNames = Array.from(new Set(
     Object.values(subjectsBySemester || {}).flat()
@@ -311,20 +391,31 @@ export default function App() {
       .map(toSubjectName)
       .filter(Boolean)
   ));
-  const userSubjects = Array.from(new Set((user?.subjects?.length > 0 ? user.subjects : semSubjectNames).map(toSubjectName).filter(Boolean)));
+  const selectedSubjects = Array.isArray(viewUser?.subjects) ? viewUser.subjects : semSubjectNames;
+  const userSubjects = Array.from(new Set(selectedSubjects.map(toSubjectName).filter(Boolean)));
 
   // Merge all semester timetables so map can show in-session occupancy campus-wide.
-  const mergedRawTimetable = {};
-  for (const [semKey, roomMap] of Object.entries(timetables || {})) {
-    const semNum = Number(semKey);
-    for (const [room, slots] of Object.entries(roomMap || {})) {
-      const nr = normaliseRoomId(room);
-      if (!mergedRawTimetable[nr]) mergedRawTimetable[nr] = [];
-      for (const slot of (slots || [])) {
-        mergedRawTimetable[nr].push({ ...slot, sem: slot?.sem ?? semNum });
+  const mergedRawTimetable = useMemo(() => {
+    const merged = {};
+    for (const [semKey, roomMap] of Object.entries(timetables || {})) {
+      const semNum = Number(semKey);
+      for (const [room, slots] of Object.entries(roomMap || {})) {
+        const nr = normaliseRoomId(room);
+        if (!merged[nr]) merged[nr] = [];
+        for (const slot of (slots || [])) {
+          merged[nr].push({ ...slot, sem: slot?.sem ?? semNum });
+        }
       }
     }
-  }
+    return merged;
+  }, [timetables]);
+  const teacherNames = useMemo(() => getTeacherNames(mergedRawTimetable), [mergedRawTimetable]);
+  const teacherAssignments = useMemo(
+    () => viewUser?.type === 'teacher'
+      ? getTeacherAssignments(mergedRawTimetable, viewUser.fullName || viewUser.name)
+      : [],
+    [viewUser?.type, viewUser?.fullName, viewUser?.name, mergedRawTimetable],
+  );
 
   // Reconcile abbreviations only when the timetable itself has a same-room,
   // same-time clash and both records name the same teacher.
@@ -332,56 +423,35 @@ export default function App() {
   const userSubjectKeys = new Set(userSubjects.map(subject =>
     normalizeSubjectKey(resolveSubjectAlias(subject, subjectAliasMap))
   ));
-  const mutedClassKeys = new Set(user?.mutedClassKeys || []);
-
-  const timetable = Object.fromEntries(
-    Object.entries(mergedRawTimetable).map(([room, slots]) => [
-      room,
-      (slots || []).map(slot => {
-        const normalizedSlot = {
-          ...slot,
-          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
-        };
-        const muteKey = getClassMuteKey(normalizedSlot, room, 'regular');
-        return {
-          ...normalizedSlot,
-          isMine: user?.type === 'staff' ? false : user?.type === 'teacher'
-            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase()
-            : userSubjectKeys.has(normalizeSubjectKey(resolveSubjectAlias(slot.subject, subjectAliasMap))),
-          muteKey,
-          isMuted: mutedClassKeys.has(muteKey),
-        };
-      }),
-    ])
+  const arrangedClassesWithOwnership = useMemo(() => arrangedClasses.map(arrangedClass => ({
+    ...arrangedClass,
+    subject: resolveSubjectAlias(arrangedClass.subject, subjectAliasMap),
+    isMine: isArrangedClassMine({
+      ...arrangedClass,
+      subject: resolveSubjectAlias(arrangedClass.subject, subjectAliasMap),
+    }, viewUser, {
+      dept: viewUser?.dept,
+      semester: currentSem,
+      subjectKeys: userSubjectKeys,
+    }),
+  })), [arrangedClasses, viewUser, currentSem, userSubjectKeys, subjectAliasMap]);
+  const rawTimetable = mapTimetableWithOwnership(mergedRawTimetable, viewUser, currentSem, userSubjectKeys, subjectAliasMap);
+  const timetable = applyLTPeriodSettingsToTimetable(
+    rawTimetable,
+    adjustedLectureSlotsByDepartmentSemester,
+    ltPeriodSettings.settings,
   );
 
   const examWithOwnership = {
     ...exam,
-    timetables: Object.fromEntries(Object.entries(exam?.timetables || {}).map(([room, slots]) => [
-      room,
-      (slots || []).map(slot => {
-        const normalizedSlot = {
-          ...slot,
-          subject: resolveSubjectAlias(slot.subject, subjectAliasMap),
-        };
-        const muteKey = getClassMuteKey(normalizedSlot, room, 'exam');
-        return {
-          ...normalizedSlot,
-          isMine: user?.type === 'staff' ? false : user?.type === 'teacher'
-            ? String(slot?.prof || slot?.teacher || '').trim().toLocaleLowerCase() === String(user?.fullName || user?.name || '').trim().toLocaleLowerCase()
-            : userSubjectKeys.has(normalizeSubjectKey(normalizedSlot.subject)),
-          muteKey,
-          isMuted: mutedClassKeys.has(muteKey),
-        };
-      }),
-    ])),
+    timetables: mapTimetableWithOwnership(exam?.timetables, viewUser, currentSem, userSubjectKeys, subjectAliasMap),
   };
 
   useEffect(() => {
     let active = true;
     const sync = async () => {
       if (screen !== 'main') return;
-      if (!user || user.type === 'guest') {
+      if (!user || !viewUser || viewUser.type === 'guest') {
         await syncMyClassLocalNotifications({ enabled: false });
         return;
       }
@@ -391,17 +461,45 @@ export default function App() {
       }
       if (timetableLoading || schedule.loading) return;
 
+      if (Platform.OS === 'android' && !exactAlarmPrompted.current) {
+        try {
+          const exactAlarmAllowed = await getExactReminderPermissionAsync();
+          if (!exactAlarmAllowed) {
+            exactAlarmPrompted.current = true;
+            Alert.alert(
+              'Allow exact class reminders',
+              'Android requires Alarms and reminders access for alerts at 10 minutes before class and at the start time. You can allow it in the next settings screen.',
+              [
+                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Open settings',
+                  onPress: () => {
+                    requestExactReminderPermissionAsync()
+                      .then(() => sync())
+                      .catch(error => console.warn('Could not open exact alarm settings.', error));
+                  },
+                },
+              ],
+            );
+          }
+        } catch (error) {
+          exactAlarmPrompted.current = true;
+          console.warn('Could not check exact alarm access.', error);
+        }
+      }
+
       const activeTimetable = schedule.mode === 'exam'
         ? examWithOwnership.timetables
         : schedule.mode === 'regular' ? timetable : {};
       const result = await syncMyClassLocalNotifications({
         enabled: true,
         uid: user.uid,
-        dept: user.dept,
-        semester: user.semester,
+        role: viewUser.type,
+        dept: viewUser.dept,
+        semester: viewUser.semester,
+        teacherName: viewUser.fullName || viewUser.name,
         mode: schedule.mode,
         timetable: activeTimetable,
-        mutedClassKeys: user.mutedClassKeys || [],
         now: new Date(),
       });
       if (result.permissionDenied) {
@@ -412,7 +510,7 @@ export default function App() {
     sync().catch(error => console.warn('Failed to sync class reminders.', error));
     const subscription = AppState.addEventListener('change', state => {
       if (!active || state !== 'active') return;
-      if (screen !== 'main' || !user || user.type === 'guest') return;
+      if (screen !== 'main' || !user || viewUser?.type === 'guest') return;
 
       Promise.all([
         reloadTT(),
@@ -448,8 +546,17 @@ export default function App() {
     user?.semester,
     user?.fullName,
     user?.name,
+    user?.developerRole,
+    user?.developerModeEnabled,
+    user?.developerStudentDept,
+    user?.developerStudentSemester,
+    user?.developerTeacherName,
+    viewUser?.type,
+    viewUser?.dept,
+    viewUser?.semester,
+    viewUser?.fullName,
+    viewUser?.name,
     JSON.stringify(user?.subjects || []),
-    JSON.stringify(user?.mutedClassKeys || []),
     schedule.mode,
     schedule.loading,
     schedule.reload,
@@ -458,10 +565,13 @@ export default function App() {
     exam?.manifest?.updatedAt,
     ttMeta?.updatedAt,
     exam?.meta?.updatedAt,
+    ltPeriodSettings.settings,
     reloadTT,
   ]);
 
-  const subjectsMap = { cs: { [currentSem]: semSubjectNames } };
+  const subjectsMap = viewUser?.type === 'teacher'
+    ? {}
+    : { [currentDept || 'cs']: { [currentSem]: semSubjectNames } };
 
   // BUG FIX: Pass displayRows into ttMeta so TimetableModal can render them
   const ttRows = displayRowsBySemester?.[currentSem] || displayRows;
@@ -486,38 +596,43 @@ export default function App() {
       case 'home':
         return (
           <HomeScreen
-            user={user} dark={dark} now={now}
-            timetable={timetable} lectureSlots={lectureSlots}
-            lectureSlotsByDepartmentSemester={lectureSlotsByDepartmentSemester}
+            user={viewUser} dark={dark} now={now}
+            timetable={timetable} lectureSlots={adjustedLectureSlots}
+            lectureSlotsByDepartmentSemester={adjustedLectureSlotsByDepartmentSemester}
             timetableDocuments={timetableDocuments}
             timetableManifest={timetableManifest}
-            arrangedClasses={arrangedClasses} cancelledSlots={cancelledSlots}
+            arrangedClasses={arrangedClassesWithOwnership} cancelledSlots={cancelledSlots}
             ttMeta={ttMetaWithRows} onTTUploaded={() => reloadTT()}
-            onUpdateUser={handleUpdate}
+            onUpdateUser={handleViewUserUpdate}
             schedule={schedule} examTimetable={examWithOwnership}
-            onToggleClassMute={handleToggleClassMute}
             officeTarget={officeTarget}
             onOfficeTargetHandled={() => setOfficeTarget(null)}
+            ltPeriodSettings={ltPeriodSettings.settings}
+            ltPeriodSettingsLoading={ltPeriodSettings.loading}
+            onSaveLTPeriodSettings={nextSettings => ltPeriodSettings.save(nextSettings, viewUser?.email)}
+            onResetLTPeriodSettings={() => ltPeriodSettings.reset(viewUser?.email)}
           />
         );
       case 'class':
         return (
           <ClassScreen
-            user={user} dark={dark}
-            lectureSlots={lectureSlots} subjectsMap={subjectsMap} timetables={timetables}
+            user={viewUser} dark={dark}
+            lectureSlots={adjustedLectureSlots} subjectsMap={subjectsMap} timetables={adjustedTimetables}
+            teacherAssignments={teacherAssignments}
             schedule={schedule}
+            {...classNotifications}
           />
         );
       case 'chat':
         return (
           <View style={{ flex: 1, backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' }}>
-            <ChatScreen user={user} dark={dark} />
+            <ChatScreen user={viewUser} dark={dark} />
           </View>
         );
       case 'uninews':
-        return <UniNewsScreen user={user} dark={dark} />;
+        return <UniNewsScreen user={viewUser} dark={dark} />;
       case 'directory':
-        return <TeacherDirectoryScreen dark={dark} user={user} subjectsBySemester={subjectsBySemester}
+        return <TeacherDirectoryScreen dark={dark} user={viewUser} subjectsBySemester={subjectsBySemester}
           onShowTeacherOffice={teacher => { setOfficeTarget({ ...teacher.office, key: `${teacher._docId || teacher.name}_${Date.now()}` }); setActiveTab('home'); }} />;
       case 'profile':
         return (
@@ -528,25 +643,15 @@ export default function App() {
             onUpdate={handleUpdate}
             onToggleNotifications={handleToggleNotifications}
             onRoleChange={handleRoleChange}
+            developerTeacherNames={teacherNames}
+            onSelectDeveloperTeacher={handleSelectDeveloperTeacher}
             onLogout={handleLogout}
           />
         );
-      case 'settings':
-        return staffAccess ? (
-          <SettingsScreen
-            user={user} dark={dark} onToggleDark={() => setDark(value => !value)}
-            onOpenProfile={() => setActiveTab('profile')}
-            onOpenAnnouncements={() => setEmergencyOpenRequest(value => value + 1)}
-            schedule={schedule}
-            ttMeta={ttMeta} timetableDocuments={timetableDocuments}
-            timetableManifest={timetableManifest} examTimetable={exam}
-            onTTUploaded={() => reloadTT()}
-          />
-        ) : null;
       case 'internal':
         return (
           <View style={{ flex: 1, backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' }}>
-            <InternalScreen user={user} dark={dark} />
+            <InternalScreen user={viewUser} dark={dark} />
           </View>
         );
       default:
@@ -564,11 +669,11 @@ export default function App() {
       ) : (
         <SafeAreaView style={styles.app} edges={['top', 'bottom', 'left', 'right']}>
           {/* Top bar */}
-          <View style={[styles.topBar, { backgroundColor: dark ? C.purpleDeep : C.purple }]}>
+          <View style={[styles.topBar, isDesktopWeb && styles.desktopTopBar, { backgroundColor: dark ? C.purpleDeep : C.purple }]}>
             <Text style={styles.topBarTitle}>CampusAI</Text>
-            {!isGuest && <ScheduleModePicker user={user} dark={dark} schedule={schedule} />}
+            {!isGuest && <ScheduleModePicker user={viewUser} dark={dark} schedule={schedule} />}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-              {!isGuest && <EmergencyAnnouncements user={user} dark={dark} openRequest={emergencyOpenRequest} {...emergency} />}
+              {!isGuest && <EmergencyAnnouncements user={viewUser} dark={dark} {...emergency} />}
               {isGuest && (
                 <TouchableOpacity
                   accessibilityLabel="Exit Guest Mode and sign in"
@@ -583,11 +688,60 @@ export default function App() {
             </View>
           </View>
 
-          {/* Tab content */}
-          <View style={{ flex: 1 }}>{renderTab()}</View>
+          <View style={[
+            styles.workspace,
+            Platform.OS !== 'web' && styles.nativeWorkspace,
+            { backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' },
+          ]}>
+            {isDesktopWeb && (
+              <View style={[styles.sidebar, { backgroundColor: dark ? '#10102D' : '#FFFFFF', borderRightColor: dark ? '#2A1C6B' : '#E2E0F5' }]}>
+                <Text style={[styles.sidebarHeading, { color: dark ? '#8B7BB8' : '#81799F' }]}>WORKSPACE</Text>
+                <ScrollView contentContainerStyle={styles.sidebarItems}>
+                  {navItems.map(tab => {
+                    const active = activeTab === tab.key;
+                    const iconColor = NAV_ICON_COLORS[tab.key]?.[dark ? 'dark' : 'light'] || (dark ? '#A78BFA' : '#6C47D4');
+                    return (
+                      <TouchableOpacity
+                        key={tab.key}
+                        onPress={() => setActiveTab(tab.key)}
+                        style={[styles.sidebarItem, active && { backgroundColor: dark ? '#211A49' : '#F1EEFF' }]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}>
+                        <Svg width={20} height={20} viewBox="0 0 24 24" fill={iconColor}>
+                          <Path d={tab.icon} />
+                        </Svg>
+                        <Text numberOfLines={1} style={[
+                          styles.sidebarLabel,
+                          { color: active ? (dark ? '#EDE9FF' : '#3D2B8E') : (dark ? '#B9ACD9' : '#51486D') },
+                          active && styles.sidebarLabelActive,
+                        ]}>
+                          {tab.label}
+                        </Text>
+                        {tab.badge && <View style={[styles.sidebarBadge, { backgroundColor: iconColor }]} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <View style={[styles.sidebarUser, { borderTopColor: dark ? '#2A1C6B' : '#E2E0F5' }]}>
+                  <Text numberOfLines={1} style={[styles.sidebarUserName, { color: dark ? '#EDE9FF' : '#1A0F4A' }]}>
+                    {viewUser?.fullName || viewUser?.name || 'CampusAI user'}
+                  </Text>
+                  <Text style={[styles.sidebarUserRole, { color: dark ? '#9B7EF8' : '#6C47D4' }]}>
+                    {viewUser?.type === 'teacher' && staffAccess ? 'Teacher · Staff' : viewUser?.type}
+                  </Text>
+                </View>
+              </View>
+            )}
 
-          {/* Bottom nav */}
-          <View style={[styles.tabBar, { backgroundColor: dark ? '#12123A' : '#FFFFFF', borderTopColor: dark ? '#2A1C6B' : '#E2E0F5' }]}>
+            {/* Tab content */}
+            <View style={styles.mainContent}>
+              <View style={isDesktopWeb ? styles.desktopPage : styles.mobilePage}>
+                {renderTab()}
+              </View>
+            </View>
+
+            {/* Bottom nav */}
+            {!isDesktopWeb && <View style={[styles.tabBar, { backgroundColor: dark ? '#12123A' : '#FFFFFF', borderTopColor: dark ? '#2A1C6B' : '#E2E0F5' }]}>
             {maxNavStart > 0 && (
             <TouchableOpacity
               accessibilityLabel="Show previous navigation screens"
@@ -641,7 +795,7 @@ export default function App() {
                   );
                 })}
               </ScrollView>
-            </View>
+              </View>
             {maxNavStart > 0 && (
             <TouchableOpacity
               accessibilityLabel="Show next navigation screens"
@@ -655,6 +809,7 @@ export default function App() {
               <Text style={[styles.navArrowText, { color: navStartClamped >= maxNavStart ? (dark ? '#4A3A7A' : '#D0CCE0') : (dark ? '#EDE9FF' : '#6C47D4') }]}>›</Text>
             </TouchableOpacity>
             )}
+            </View>}
           </View>
         </SafeAreaView>
       )}
@@ -664,6 +819,22 @@ export default function App() {
 
 const styles = StyleSheet.create({
   app: { flex: 1 },
+  workspace: { flex: 1, flexDirection: 'row' },
+  nativeWorkspace: { flexDirection: 'column' },
+  desktopTopBar: { minHeight: 62, paddingHorizontal: 24, paddingVertical: 10 },
+  sidebar: { width: 244, borderRightWidth: 1, paddingHorizontal: 12, paddingTop: 22, paddingBottom: 10 },
+  sidebarHeading: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2, paddingHorizontal: 12, marginBottom: 12 },
+  sidebarItems: { gap: 5 },
+  sidebarItem: { minHeight: 46, borderRadius: 11, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sidebarLabel: { flex: 1, fontSize: 12, fontWeight: '600' },
+  sidebarLabelActive: { fontWeight: '800' },
+  sidebarBadge: { width: 7, height: 7, borderRadius: 4 },
+  sidebarUser: { borderTopWidth: 1, paddingHorizontal: 10, paddingTop: 14, marginTop: 12 },
+  sidebarUserName: { fontSize: 12, fontWeight: '800' },
+  sidebarUserRole: { fontSize: 10, fontWeight: '600', marginTop: 4, textTransform: 'capitalize' },
+  mainContent: { flex: 1, alignItems: 'center' },
+  desktopPage: { flex: 1, width: '100%', maxWidth: 1600 },
+  mobilePage: { flex: 1, width: '100%' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 10 },
   topBarTitle: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
   darkBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },

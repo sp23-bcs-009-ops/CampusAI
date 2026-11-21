@@ -79,24 +79,12 @@ def _firebase_app():
 
 
 def verify_timetable_uploader(id_token: str) -> dict:
-    """Verify a Firebase ID token and require a saved teacher/staff profile."""
+    """Verify a Firebase ID token and require a saved Staff profile."""
     app = _firebase_app()
     try:
         decoded = auth.verify_id_token(id_token, app=app, check_revoked=True)
     except Exception as exc:
         raise InvalidFirebaseToken("Firebase ID token is invalid or expired.") from exc
-    if os.getenv("TIMETABLE_UPLOAD_DEV_MODE", "false").strip().lower() == "true":
-        uid = decoded.get("uid")
-        if not uid:
-            raise PermissionError("A verified university account is required.")
-        try:
-            firebase_user = auth.get_user(uid, app=app)
-        except Exception as exc:
-            raise PermissionError("A verified university account is required.") from exc
-        email = str(firebase_user.email or "").strip() or "dev-upload-user"
-        logger.warning("TIMETABLE_UPLOAD_DEV_MODE is enabled; accepting Firebase user %s", email)
-        return {"email": email, "role": "dev"}
-
     email = str(decoded.get("email") or "").strip()
     if not email or decoded.get("email_verified") is not True:
         raise PermissionError("A verified university account is required.")
@@ -105,8 +93,8 @@ def verify_timetable_uploader(id_token: str) -> dict:
     profile_snapshot = firestore.client(app=app).collection("users").document(profile_id).get()
     profile = profile_snapshot.to_dict() if profile_snapshot.exists else None
     role = profile.get("type") if profile else None
-    if role not in {"teacher", "staff"}:
-        raise PermissionError("Only a registered Teacher or Staff account can upload timetables.")
+    if role != "staff":
+        raise PermissionError("Only a registered Staff account can upload timetables.")
     return {"email": email, "role": role}
 
 

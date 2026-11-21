@@ -164,12 +164,10 @@ def test_exam_upload_endpoint_is_staff_only_and_requires_exam_mode():
     assert "publish_exam_timetable_xlsx," in api_source
 
 
-def test_exam_upload_accepts_dev_test_identity_only_when_dev_mode_is_enabled(monkeypatch):
+def test_exam_upload_accepts_staff_only_even_when_dev_mode_is_enabled(monkeypatch):
     import api_server as API
 
-    monkeypatch.setenv("TIMETABLE_UPLOAD_DEV_MODE", "false")
     assert API._exam_upload_role_allowed({"role": "staff"})
     assert not API._exam_upload_role_allowed({"role": "dev"})
-
     monkeypatch.setenv("TIMETABLE_UPLOAD_DEV_MODE", "true")
-    assert API._exam_upload_role_allowed({"role": "dev"})
+    assert not API._exam_upload_role_allowed({"role": "dev"})

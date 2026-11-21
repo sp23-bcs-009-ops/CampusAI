@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SCHEDULE_MODES } from '../hooks/useScheduleMode';
 import { hasStaffRole } from '../constants/config';

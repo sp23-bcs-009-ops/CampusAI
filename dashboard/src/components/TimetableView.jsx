@@ -1,14 +1,5 @@
-import React, { useMemo, useState } from 'react';
-
-const DAY_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-const slotStart = (slot) => {
-  const m = String(slot).match(/^(\d{1,2}):(\d{2})/);
-  if (!m) return 0;
-  let h = Number(m[1]);
-  if (h <= 7) h += 12; // "1:30" style afternoon times
-  return h * 60 + Number(m[2]);
-};
+import { useMemo, useState } from 'react';
+import { DAY_ORDER, slotStart } from '../timetableUtils';
 
 export default function TimetableView({ classes }) {
   const classNames = useMemo(() => Object.keys(classes).sort(), [classes]);

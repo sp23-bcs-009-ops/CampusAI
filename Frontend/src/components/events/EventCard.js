@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { C } from '../../constants/colors';
 import { EVENT_CATS, hasStaffRole } from '../../constants/config';

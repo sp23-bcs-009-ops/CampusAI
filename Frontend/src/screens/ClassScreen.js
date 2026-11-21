@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity,
+  View, Text, FlatList, TouchableOpacity, ActivityIndicator,
   StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { DEPT_MAX_SEM, NOTIF_TYPES, can, hasStaffRole } from '../constants/config';
-import { dateToDayName } from '../utils/helpers';
 import NotifCard from '../components/class/NotifCard';
 import PostModal from '../components/class/PostModal';
-import useNotifs from '../hooks/useNotifs';
+import { toSubjectName } from '../utils/helpers';
+import { getAvailableRoomsForSlot } from '../utils/availableRooms';
 
 const FILTERS = [
   { key: 'all',        label: 'All' },
@@ -21,13 +21,13 @@ const FILTERS = [
   { key: 'other',      label: 'Other' },
 ];
 
-export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, timetables, isGuest, schedule }) {
-  const {
-    notifs, loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
-    teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadAllReservations, roomReservations, setNotifs,
-    arrangedClasses, cancelledSlots,
-  } = useNotifs(lectureSlots);
-
+export default function ClassScreen({
+  user, dark, lectureSlots, subjectsMap, timetables, isGuest, schedule,
+  teacherAssignments = [],
+  notifs, loadNotifs, postNotif, editNotif, deleteNotif, togglePin,
+  teacherOptions, loadTeacherOptions, loadTeacherNotifs, loadTeacherAssignments,
+  roomReservations, setNotifs, clearNotificationScope,
+}) {
   const [typeFilter,    setTypeFilter]    = useState('all');
   const [subjectFilter, setSubjectFilter] = useState('all');
   const [staffView, setStaffView] = useState(null);
@@ -35,13 +35,13 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
   const [staffTeacher, setStaffTeacher] = useState(null);
   const [showPost,      setShowPost]      = useState(false);
   const [editItem,      setEditItem]      = useState(null);
+  const [loadingNotifs, setLoadingNotifs] = useState(!isGuest && !hasStaffRole(user));
 
   const dept     = user?.dept || 'cs';
   const semester = user?.semester || 7;
 
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
-
   const isStaff = hasStaffRole(user);
+  const isTeacher = user?.type === 'teacher';
   // During Exam mode the reflected timetable is the exam schedule, so adding
   // notifications (including Cancel Class) is locked until Regular returns.
   const examModeActive = (schedule?.mode || 'regular') === 'exam';
@@ -54,6 +54,10 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
   }
 
   function startNewPost() {
+    if (isTeacher && teacherAssignments.length === 0) {
+      Alert.alert('No teaching assignments', 'The active timetable has no classes assigned to this teacher.');
+      return;
+    }
     if (examModeActive) {
       notifyExamLocked();
       return;
@@ -64,9 +68,30 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
 
   useEffect(() => {
     if (isGuest) return;
-    loadAllReservations(dept);
-    if (!isStaff) loadNotifs(dept, semester);
-  }, [dept, semester, isGuest, isStaff]);
+    let mounted = true;
+    const load = async () => {
+      if (!isStaff) {
+        setLoadingNotifs(true);
+        try {
+          if (isTeacher) await loadTeacherAssignments(teacherAssignments);
+          else await loadNotifs(dept, semester);
+        } catch (error) {
+          console.warn('Failed to load class notifications.', error);
+        } finally {
+          if (mounted) setLoadingNotifs(false);
+        }
+      }
+    };
+    load();
+    if (isStaff) loadTeacherOptions(dept);
+    return () => {
+      mounted = false;
+      clearNotificationScope();
+    };
+  }, [
+    dept, semester, isGuest, isStaff, isTeacher, teacherAssignments,
+    loadTeacherAssignments, loadNotifs, loadTeacherOptions, clearNotificationScope,
+  ]);
 
   useEffect(() => {
     if (!isStaff) return;
@@ -75,7 +100,6 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
     setStaffTeacher(null);
     setNotifs([]);
     loadTeacherOptions(dept);
-    loadAllReservations(dept);
   }, [dept, isStaff]);
 
   const filtered = isGuest ? [] : notifs
@@ -107,40 +131,23 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
     await deleteNotif(id, type, item?.dept || dept, item?.semester || staffSemester || semester);
   }
 
-  const canPost = !isGuest && (can.postClassNotif(user) || can.postRoomReservation(user));
+  const canPost = !isGuest && (
+    (can.postClassNotif(user) && (!isTeacher || teacherAssignments.length > 0))
+    || can.postRoomReservation(user)
+  );
 
-  function getAvailableRooms({ dept: targetDept, semester: targetSemester, date, lectureNum }) {
-    if (!targetDept || !targetSemester || !date || !lectureNum) return [];
-    const selectedSlot = lectureSlots?.[lectureNum];
-    if (!selectedSlot) return [];
-    const selectedDay = dateToDayName(date);
-    const roomMap = timetables?.[Number(targetSemester)] || {};
-    const roomNames = new Set(['LT1', 'LT2', 'LT3', 'LT4', 'LT5', 'LT6', 'LT8', 'LT9']);
-    Object.keys(roomMap).forEach(room => roomNames.add(room));
-
-    const normaliseDay = value => String(value || '').slice(0, 3).toLowerCase();
-    const toMinutes = value => {
-      const [hours, minutes] = String(value || '').split(':').map(Number);
-      return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : null;
-    };
-    const overlapsTimetable = slots => (slots || []).some(slot => {
-      if (normaliseDay(slot.day) !== normaliseDay(selectedDay)) return false;
-      const time = String(slot.time || '');
-      const start = toMinutes(slot.start || time.split('-')[0]);
-      const end = toMinutes(slot.end || time.split('-')[1]);
-      const selectedStart = toMinutes(selectedSlot.start);
-      const selectedEnd = toMinutes(selectedSlot.end);
-      return start !== null && end !== null && start < selectedEnd && end > selectedStart;
+  function getAvailableRooms({ dept: targetDept, semester: targetSemester, date, lectureNum, type }) {
+    return getAvailableRoomsForSlot({
+      timetables,
+      dept: targetDept,
+      semester: targetSemester,
+      date,
+      lectureNum,
+      lectureSlots,
+      teacherName: user?.fullName || user?.name,
+      checkTeachingConflicts: type === 'arrange',
+      roomReservations: roomReservations.filter(notif => notif.id !== editItem?.id),
     });
-
-    return Array.from(roomNames)
-      .filter(room => !overlapsTimetable(roomMap[room]))
-      .filter(room => !roomReservations.some(notif =>
-        (notif.type === 'arrange' || notif.type === 'room_reservation') &&
-        notif.id !== editItem?.id && notif.room === room && notif.date === date && Number(notif.lectureNum) === Number(lectureNum)
-      ))
-      .sort((a, b) => a.localeCompare(b))
-      .map(room => ({ room }));
   }
 
   function selectStaffView(view) {
@@ -150,17 +157,22 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
     setTypeFilter('all');
     setSubjectFilter('all');
     setNotifs([]);
-    if (view === 'teacher') loadTeacherOptions(dept);
+    if (view === 'teacher') {
+      setLoadingNotifs(true);
+      loadTeacherOptions(dept).finally(() => setLoadingNotifs(false));
+    }
   }
 
   function selectStaffSemester(value) {
     setStaffSemester(value);
-    loadNotifs(dept, value);
+    setLoadingNotifs(true);
+    loadNotifs(dept, value).finally(() => setLoadingNotifs(false));
   }
 
   function selectStaffTeacher(value) {
     setStaffTeacher(value);
-    loadTeacherNotifs(dept, value);
+    setLoadingNotifs(true);
+    loadTeacherNotifs(dept, value).finally(() => setLoadingNotifs(false));
   }
 
   return (
@@ -170,7 +182,9 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.headerSub}>
-              BS {dept.toUpperCase()} · {isStaff && !staffSemester && !staffTeacher ? 'Choose view' : `Sem ${staffSemester || semester}`}
+              {isTeacher
+                ? `${teacherAssignments.length} teaching group${teacherAssignments.length === 1 ? '' : 's'}`
+                : `BS ${dept.toUpperCase()} · ${isStaff && !staffSemester && !staffTeacher ? 'Choose view' : `Sem ${staffSemester || semester}`}`}
             </Text>
             <Text style={styles.headerTitle}>Class Board</Text>
           </View>
@@ -224,7 +238,9 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
                 data={teacherOptions}
                 horizontal showsHorizontalScrollIndicator={false}
                 keyExtractor={value => value}
-                ListEmptyComponent={<Text style={styles.staffHint}>No teachers found</Text>}
+                ListEmptyComponent={loadingNotifs
+                  ? <ActivityIndicator color={C.purple} style={{ marginHorizontal: 16 }} />
+                  : <Text style={styles.staffHint}>No teachers found</Text>}
                 renderItem={({ item: value }) => (
                   <TouchableOpacity onPress={() => selectStaffTeacher(value)}
                     style={[styles.staffOptionChip, staffTeacher === value && styles.staffOptionChipActive]}>
@@ -280,8 +296,8 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
 
       {/* Feed */}
       <FlatList
-        data={filtered}
-        keyExtractor={n => String(n.id)}
+        data={loadingNotifs ? [] : filtered}
+        keyExtractor={n => String(n._docId || n.id)}
         contentContainerStyle={styles.feed}
         ListHeaderComponent={
           <>
@@ -305,12 +321,18 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
           </>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
-            <Text style={{ fontSize: 13, color: ts }}>
-              {isStaff && !staffSemester && !staffTeacher ? 'Choose a class, semester, or teacher' : 'No notifications here'}
-            </Text>
-          </View>
+          loadingNotifs
+            ? <ActivityIndicator color={C.purple} style={{ marginTop: 36 }} />
+            : <View style={styles.empty}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
+                <Text style={{ fontSize: 13, color: ts }}>
+                  {isStaff && !staffSemester && !staffTeacher
+                    ? 'Choose a class, semester, or teacher'
+                    : isTeacher && teacherAssignments.length === 0
+                      ? 'No teaching assignments found in the active timetable'
+                      : 'No notifications here'}
+                </Text>
+              </View>
         }
         renderItem={({ item: n }) => (
           <NotifCard
@@ -331,6 +353,7 @@ export default function ClassScreen({ user, dark, lectureSlots, subjectsMap, tim
         lectureSlots={lectureSlots}
         subjectsMap={subjectsMap}
         user={user}
+        teacherAssignments={teacherAssignments}
         getAvailableRooms={getAvailableRooms}
         onClose={() => { setShowPost(false); setEditItem(null); }}
         onSubmit={handleSubmit}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fsGet, fsList } from '../firebase/firestore';
 import { parseTimetableDoc } from '../utils/helpers';
 
@@ -16,6 +16,7 @@ const emptyExam = {
 
 /** Loads the selected timetable dataset and its matching manifest. */
 export default function useTimetable() {
+  const loadRequestRef = useRef(0);
   const [state, setState] = useState({
     lectureSlots: {},
     lectureSlotsByDepartmentSemester: {},
@@ -33,13 +34,15 @@ export default function useTimetable() {
   });
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       const [allDocs, currentManifest, examManifest] = await Promise.all([
         fsList(TIMETABLE_COLLECTION, { throwOnError: true }),
-        fsGet(`${TIMETABLE_COLLECTION}/current`),
-        fsGet(`${TIMETABLE_COLLECTION}/exam_current`),
+        fsGet(`${TIMETABLE_COLLECTION}/current`, { throwOnError: true, allowNotFound: true }),
+        fsGet(`${TIMETABLE_COLLECTION}/exam_current`, { throwOnError: true, allowNotFound: true }),
       ]);
+      if (requestId !== loadRequestRef.current) return;
       const activeIds = new Set(Array.isArray(currentManifest?.documentIds) ? currentManifest.documentIds : []);
       const examIds = new Set(Array.isArray(examManifest?.documentIds) ? examManifest.documentIds : []);
       const docs = allDocs.filter(doc => activeIds.has(doc._docId));
@@ -201,6 +204,8 @@ export default function useTimetable() {
         error: null,
       });
     } catch (e) {
+      if (requestId !== loadRequestRef.current) return;
+      console.warn('Could not load timetable from Firestore.', e);
       setState(s => ({ ...s, loading: false, error: 'Could not load timetable.' }));
     }
   }, []);

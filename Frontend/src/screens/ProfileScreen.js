@@ -1,34 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   TextInput, StyleSheet, Linking, Platform,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePickerAdapter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
-import { DEPT_MAP, DEPT_MAX_SEM, SEM_LABELS, STUDENT_DEPARTMENTS } from '../constants/config';
-import { calcAge } from '../utils/helpers';
+import { DEPT_MAX_SEM, SEM_LABELS, STUDENT_DEPARTMENTS } from '../constants/config';
+import { calcAge, toSubjectName } from '../utils/helpers';
 import { InfoRow } from '../components/ui';
 import {
   canUseDeveloperMode,
-  isAlwaysOnTestAccount,
   isDeveloperModeEnabled,
-} from '../utils/developerClock';
-import { updateUserProfileFields } from '../firebase/firestore';
+  setDeveloperMode,
+  setDeveloperStudentAcademicInfo,
+} from '../utils/developerMode';
 
-// The app keeps the profile on the device; the chatbot reads it from Firestore.
-// Send the edited fields there too. A failure (offline, guest account) never blocks the local save.
-function syncProfileFields(user, fields) {
-  if (!user?.email || user.isAnonymous) return;
-  updateUserProfileFields(user.email, fields)
-    .catch(error => console.warn('Profile saved on this device, but not synced to Firestore.', error));
-}
-
-export default function ProfileScreen({ user, onUpdate, onToggleNotifications, onRoleChange, onLogout, dark, subjectsList = [], availableSubjects = [] }) {
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
+export default function ProfileScreen({
+  user, onUpdate, onToggleNotifications, onRoleChange, onLogout, dark,
+  subjectsList = [], availableSubjects = [], developerTeacherNames = [],
+  onSelectDeveloperTeacher,
+}) {
   const normalizeSubjects = (arr) => (arr || []).map(toSubjectName).filter(Boolean);
   const subjectOptions = Array.from(new Set(normalizeSubjects(subjectsList)));
   const addSubjectOptions = Array.from(new Set(normalizeSubjects(availableSubjects)));
+  const subjectOptionsKey = subjectOptions.join('\0');
 
   const [editing,      setEditing]      = useState(false);
   const [editPhone,    setEditPhone]    = useState(false);
@@ -39,16 +35,38 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   const [saved,        setSaved]        = useState(false);
   const [showDobPick,  setShowDobPick]  = useState(false);
   const [dobObj,       setDobObj]       = useState(dob ? new Date(dob) : new Date(2000, 0, 1));
-  const [mySubjects,   setMySubjects]   = useState(normalizeSubjects(user.subjects?.length ? user.subjects : subjectOptions));
+  const [mySubjects,   setMySubjects]   = useState(normalizeSubjects(Array.isArray(user.subjects) ? user.subjects : subjectOptions));
   const [editSubjects, setEditSubjects] = useState(false);
   const [showAddSubject, setShowAddSubject] = useState(false);
   const [addSubjectSearch, setAddSubjectSearch] = useState('');
   const [editSem,      setEditSem]      = useState(false);
-  const [sem,          setSem]          = useState(user.semester || 1);
-  const [dept,         setDept]         = useState(user.dept || 'cs');
   const canAccessDeveloperMode = canUseDeveloperMode(user);
-  const alwaysOnTestAccount = isAlwaysOnTestAccount(user);
   const developerModeEnabled = isDeveloperModeEnabled(user);
+  const developerRole = user.developerRole || (developerModeEnabled ? 'student' : user.type);
+  const profileRole = developerModeEnabled ? developerRole : user.type;
+  const initialSemester = developerModeEnabled && developerRole === 'student'
+    ? user.developerStudentSemester || 1
+    : user.semester || 1;
+  const [sem,          setSem]          = useState(initialSemester);
+  const [dept,         setDept]         = useState(user.developerStudentDept || 'cs');
+  const [teacherSearch, setTeacherSearch] = useState(user.developerTeacherName || '');
+  const profileName = developerModeEnabled
+    ? developerRole === 'teacher'
+      ? user.developerTeacherName || 'Dev Teacher'
+      : developerRole === 'student'
+        ? 'Dev Student'
+        : 'Dev Staff'
+    : fullName || user.fullName || user.name;
+  const profileDepartment = developerModeEnabled
+    ? developerRole === 'student'
+      ? STUDENT_DEPARTMENTS.find(item => item.code === dept)?.label || dept.toUpperCase()
+      : ''
+    : user.department;
+  const showDeveloperTeacherSuggestions = !!teacherSearch.trim()
+    && teacherSearch !== user.developerTeacherName;
+  const matchingDeveloperTeachers = developerTeacherNames
+    .filter(name => name.toLocaleLowerCase().includes(teacherSearch.trim().toLocaleLowerCase()))
+    .slice(0, 20);
 
   const bg     = dark ? '#0A0A1E' : '#F5F4FF';
   const cardBg = dark ? '#1A1A3E' : '#FFFFFF';
@@ -59,34 +77,34 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   const ib     = dark ? '#0A0A1E' : '#FAFAFE';
 
   const age      = calcAge(dob || user.dob);
-  const initials = (fullName || user.fullName || user.name || '?')
+  const initials = (profileName || '?')
     .split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   const inpStyle = { borderWidth: 1.5, borderColor: C.purple, borderRadius: 8, padding: 8, fontSize: 13, color: tp, backgroundColor: ib, marginTop: 4 };
 
   function saveProfile() {
     if (!fullName.trim()) return;
-    onUpdate({ ...user, fullName, dob, semester: sem, subjects: normalizeSubjects(mySubjects) });
-    syncProfileFields(user, { fullName, dob, semester: sem, subjects: normalizeSubjects(mySubjects) });
+    onUpdate({
+      ...user,
+      fullName,
+      dob,
+      semester: developerModeEnabled ? user.semester : sem,
+      subjects: developerModeEnabled ? user.subjects : normalizeSubjects(mySubjects),
+    });
     setSaved(true); setEditing(false);
     setTimeout(() => setSaved(false), 2500);
   }
-  function savePhone() {
-    setPhone(tmpPhone); onUpdate({ ...user, phone: tmpPhone });
-    syncProfileFields(user, { phone: tmpPhone });
-    setEditPhone(false);
-  }
+  function savePhone() { setPhone(tmpPhone); onUpdate({ ...user, phone: tmpPhone }); setEditPhone(false); }
   function toggleSubject(subj) {
     setMySubjects(prev => prev.includes(subj) ? prev.filter(s => s !== subj) : [...prev, subj]);
   }
   function beginSubjectEdit(showSearch = false) {
-    if (!user.subjects?.length) setMySubjects(subjectOptions);
+    if (!Array.isArray(user.subjects)) setMySubjects(subjectOptions);
     setEditSubjects(true);
     setShowAddSubject(showSearch);
     setAddSubjectSearch('');
   }
   function saveSubjects() {
     onUpdate({ ...user, subjects: normalizeSubjects(mySubjects) });
-    syncProfileFields(user, { subjects: normalizeSubjects(mySubjects) });
     setEditSubjects(false);
     setShowAddSubject(false);
     setAddSubjectSearch('');
@@ -94,34 +112,39 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   }
   function saveSemester() {
     onUpdate({ ...user, semester: sem });
-    syncProfileFields(user, { semester: sem });
     setEditSem(false);
     setSaved(true); setTimeout(() => setSaved(false), 2500);
   }
   function setDeveloperModeEnabled(enabled) {
-    onUpdate({ ...user, developerModeEnabled: enabled });
+    onUpdate(setDeveloperMode(user, enabled), { persistNotificationPreferences: false });
   }
   function setStaffRoleEnabled(enabled) {
     onUpdate({ ...user, staffRoleEnabled: enabled });
   }
 
   useEffect(() => {
-    setSem(user.semester || 1);
-    setDept(user.dept || 'cs');
-  }, [user.semester, user.dept]);
+    setSem(developerModeEnabled && developerRole === 'student'
+      ? user.developerStudentSemester || 1
+      : user.semester || 1);
+    setDept(user.developerStudentDept || 'cs');
+  }, [
+    user.uid, user.semester, user.developerStudentDept,
+    user.developerStudentSemester, user.developerModeEnabled,
+    user.developerRole, developerModeEnabled, developerRole,
+  ]);
+
+  useEffect(() => {
+    const subjects = Array.isArray(user.subjects) ? normalizeSubjects(user.subjects) : subjectOptions;
+    setMySubjects(current => current.length === subjects.length
+      && current.every((subject, index) => subject === subjects[index])
+      ? current
+      : subjects);
+  }, [user.dept, user.semester, user.subjects, subjectOptionsKey]);
 
   function saveDeveloperStudentAcademicInfo() {
-    const semester = Math.min(Number(sem) || 1, DEPT_MAX_SEM[dept] || 8);
-    const selectedDepartment = STUDENT_DEPARTMENTS.find(item => item.code === dept);
-    onUpdate({
-      ...user,
-      dept,
-      department: selectedDepartment?.label || DEPT_MAP[dept] || dept.toUpperCase(),
-      semester,
-      subjects: [],
-    });
-    setMySubjects([]);
-    setSem(semester);
+    const updatedUser = setDeveloperStudentAcademicInfo(user, dept, sem);
+    onUpdate(updatedUser, { persistNotificationPreferences: false });
+    setSem(updatedUser.developerStudentSemester);
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   }
@@ -138,20 +161,20 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 40, width: '100%', maxWidth: 1100, alignSelf: 'center' }}>
 
         {/* Banner */}
         <View style={[styles.banner, { backgroundColor: dark ? C.purpleDeep : C.purple }]}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.name}>{fullName || user.fullName || user.name}</Text>
-          <Text style={styles.sub}>{user.type.charAt(0).toUpperCase() + user.type.slice(1)} · {user.email || 'N/A'}</Text>
+          <Text style={styles.name}>{profileName}</Text>
+          <Text style={styles.sub}>{profileRole.charAt(0).toUpperCase() + profileRole.slice(1)} · {user.email || 'N/A'}</Text>
           <View style={styles.badges}>
-            {user.type === 'student' && (
+            {profileRole === 'student' && (
               <View style={styles.badge}><Text style={styles.badgeText}>{SEM_LABELS[sem] || sem} Semester</Text></View>
             )}
-            <View style={styles.badge}><Text style={styles.badgeText}>{user.department}</Text></View>
+            {!!profileDepartment && <View style={styles.badge}><Text style={styles.badgeText}>{profileDepartment}</Text></View>}
           </View>
         </View>
 
@@ -160,10 +183,12 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
             <View style={{ flex: 1, paddingRight: 10 }}>
               <Text style={[styles.cardTitle, { color: tp }]}>Notifications</Text>
               <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
-                Control My Class and Class Notification alerts together.
+                {Platform.OS === 'web'
+                  ? 'My Class reminders are available in the mobile app.'
+                  : 'Control My Class Notification Alerts'}
               </Text>
             </View>
-            <TouchableOpacity
+            {Platform.OS !== 'web' && <TouchableOpacity
               accessibilityRole="switch"
               accessibilityLabel="All notifications"
               accessibilityState={{ checked: user.notificationEnabled !== false }}
@@ -176,7 +201,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
               <Text style={{ color: user.notificationEnabled !== false ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
                 {user.notificationEnabled !== false ? 'ON' : 'OFF'}
               </Text>
-            </TouchableOpacity>
+            </TouchableOpacity>}
           </View>
         </View>
 
@@ -186,7 +211,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
           </View>
         )}
 
-        {user.type === 'teacher' && (
+        {user.type === 'teacher' && !developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
             <View style={styles.cardHeader}>
               <View style={{ flex: 1, paddingRight: 10 }}>
@@ -215,7 +240,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
         {developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}> 
             <Text style={[styles.cardTitle, { color: '#9A3412', marginBottom: 4 }]}>
-              {user.testMode ? 'Test Account' : 'Developer Testing'}
+              Developer Testing
             </Text>
             <Text style={{ color: '#9A3412', fontSize: 11, lineHeight: 16, marginBottom: 10 }}>
               Switch roles to test each view. Role and academic test settings are stored only on this device.
@@ -223,11 +248,74 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {['student', 'teacher', 'staff'].map(type => (
                 <TouchableOpacity key={type} onPress={() => onRoleChange(type)}
-                  style={{ flex: 1, borderWidth: 1.5, borderColor: user.type === type ? '#EA580C' : '#FDBA74', borderRadius: 10, padding: 8, alignItems: 'center', backgroundColor: user.type === type ? '#FFEDD5' : '#FFF' }}>
+                  style={{ flex: 1, borderWidth: 1.5, borderColor: developerRole === type ? '#EA580C' : '#FDBA74', borderRadius: 10, padding: 8, alignItems: 'center', backgroundColor: developerRole === type ? '#FFEDD5' : '#FFF' }}>
                   <Text style={{ color: '#9A3412', fontSize: 11, fontWeight: '700' }}>{type}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+            {developerModeEnabled && developerRole === 'teacher' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={{ color: '#9A3412', fontSize: 11, fontWeight: '700', marginBottom: 6 }}>
+                  View as timetable teacher
+                </Text>
+                <TextInput
+                  value={teacherSearch}
+                  onChangeText={value => {
+                    if (user.developerTeacherName && value !== user.developerTeacherName) {
+                      onSelectDeveloperTeacher?.('');
+                    }
+                    setTeacherSearch(value);
+                  }}
+                  placeholder="Search teacher name"
+                  placeholderTextColor="#C2410C"
+                  accessibilityLabel="Search teacher name for developer view"
+                  style={{
+                    borderWidth: 1.5, borderColor: '#FDBA74', borderRadius: 10,
+                    paddingHorizontal: 10, paddingVertical: 9, color: '#7C2D12',
+                    backgroundColor: '#FFF', fontSize: 12,
+                  }}
+                />
+                {showDeveloperTeacherSuggestions && (
+                  <View style={{ maxHeight: 160, marginTop: 4, borderWidth: 1, borderColor: '#FDBA74', borderRadius: 10, backgroundColor: '#FFF' }}>
+                    <ScrollView keyboardShouldPersistTaps="handled">
+                      {matchingDeveloperTeachers.map(name => (
+                        <TouchableOpacity
+                          key={name}
+                          onPress={() => {
+                            onSelectDeveloperTeacher?.(name);
+                            setTeacherSearch(name);
+                          }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#FDBA74' }}>
+                          <Text style={{ color: '#7C2D12', fontSize: 12 }}>{name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                      {!matchingDeveloperTeachers.length && (
+                        <Text style={{ paddingHorizontal: 10, paddingVertical: 8, color: '#9A3412', fontSize: 11 }}>
+                          No teacher found in the active timetable.
+                        </Text>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+                {!!user.developerTeacherName && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onSelectDeveloperTeacher?.('');
+                      setTeacherSearch('');
+                    }}
+                    style={{ alignSelf: 'flex-start', marginTop: 6 }}>
+                    <Text style={{ color: '#9A3412', fontSize: 11, fontWeight: '700' }}>
+                      Clear selected teacher · {user.developerTeacherName}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <Text style={{ color: '#9A3412', fontSize: 10, lineHeight: 15, marginTop: 6 }}>
+                  {user.developerTeacherName
+                    ? 'Class Notification changes are saved to shared campus data under the selected teacher name.'
+                    : 'Select a teacher from the search results to activate that teacher view.'}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -237,30 +325,22 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
               <View style={{ flex: 1, paddingRight: 10 }}>
                 <Text style={[styles.cardTitle, { color: tp }]}>Developer Mode</Text>
                 <Text style={{ color: ts, fontSize: 11, marginTop: 4 }}>
-                  {alwaysOnTestAccount
-                    ? 'Always active for this development test account.'
-                    : 'Enable local role, student profile, and campus-time simulation for testing.'}
+                  Enable local role, student profile, and campus-time simulation for testing.
                 </Text>
               </View>
-              {alwaysOnTestAccount ? (
-                <View style={{ minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#DCFCE7' }}>
-                  <Text style={{ color: '#166534', fontSize: 11, fontWeight: '800' }}>ALWAYS ON</Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  accessibilityRole="switch"
-                  accessibilityState={{ checked: developerModeEnabled }}
-                  onPress={() => setDeveloperModeEnabled(!developerModeEnabled)}
-                  style={{
-                    minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
-                    alignItems: 'center',
-                    backgroundColor: developerModeEnabled ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
-                  }}>
-                  <Text style={{ color: developerModeEnabled ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
-                    {developerModeEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                accessibilityRole="switch"
+                accessibilityState={{ checked: developerModeEnabled }}
+                onPress={() => setDeveloperModeEnabled(!developerModeEnabled)}
+                style={{
+                  minWidth: 78, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: developerModeEnabled ? '#DCFCE7' : (dark ? '#27204A' : '#F0EEFF'),
+                }}>
+                <Text style={{ color: developerModeEnabled ? '#166534' : ts, fontSize: 11, fontWeight: '800' }}>
+                  {developerModeEnabled ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
             </View>
             {developerModeEnabled && (
               <Text style={{ color: muted, fontSize: 10, marginTop: 2 }}>
@@ -352,7 +432,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
         {/* Academic info */}
         <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
           <Text style={[styles.cardTitle, { color: tp, marginBottom: 4 }]}>Academic Info</Text>
-          {developerModeEnabled && user.type === 'student' ? (
+          {developerModeEnabled && developerRole === 'student' ? (
             <>
               <Text style={{ color: ts, fontSize: 11, fontWeight: '700', marginTop: 8 }}>Department</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7 }}>
@@ -374,18 +454,18 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
                 ))}
               </View>
               <TouchableOpacity onPress={saveDeveloperStudentAcademicInfo} style={[styles.editBtn, { alignSelf: 'flex-end', marginTop: 12 }]}>
-                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Save Department & Semester</Text>
+                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>Save Dev Student</Text>
               </TouchableOpacity>
             </>
-          ) : <InfoRow label="Department" dark={dark} value={user.department} />}
-          {user.type === 'student' && !developerModeEnabled && (
+          ) : <InfoRow label="Department" dark={dark} value={developerModeEnabled ? '—' : user.department} />}
+          {profileRole === 'student' && !developerModeEnabled && (
             <InfoRow label="Semester" dark={dark} value={`${SEM_LABELS[sem] || sem} Semester (${sem} of 8)`} />
           )}
-          <InfoRow label="Student ID" dark={dark} value={user.email ? user.email.split('@')[0] : 'N/A'} />
+          {!developerModeEnabled && <InfoRow label="Student ID" dark={dark} value={user.email ? user.email.split('@')[0] : 'N/A'} />}
         </View>
 
         {/* Change Subject — students only */}
-        {user.type === 'student' && (
+        {profileRole === 'student' && !developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: tp }]}>Change Subjects</Text>
@@ -399,7 +479,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
                     </TouchableOpacity>
                   </View>
                 : <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity onPress={() => { setMySubjects(normalizeSubjects(user.subjects?.length ? user.subjects : subjectOptions)); setEditSubjects(false); setShowAddSubject(false); setAddSubjectSearch(''); }} style={[styles.editBtn, { backgroundColor: dark ? '#2A1C6B' : '#F0EEFF' }]}>
+                    <TouchableOpacity onPress={() => { setMySubjects(normalizeSubjects(Array.isArray(user.subjects) ? user.subjects : subjectOptions)); setEditSubjects(false); setShowAddSubject(false); setAddSubjectSearch(''); }} style={[styles.editBtn, { backgroundColor: dark ? '#2A1C6B' : '#F0EEFF' }]}>
                       <Text style={{ color: ts, fontSize: 12, fontWeight: '700' }}>Cancel</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={saveSubjects} style={styles.editBtn}>
@@ -462,7 +542,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
         )}
 
         {/* Change Semester — students only */}
-        {user.type === 'student' && (
+        {profileRole === 'student' && !developerModeEnabled && (
           <View style={[styles.card, { backgroundColor: cardBg, borderColor: bdr }]}>
             <View style={styles.cardHeader}>
               <Text style={[styles.cardTitle, { color: tp }]}>Change Semester</Text>
@@ -520,7 +600,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
 
 const styles = StyleSheet.create({
   safe:        { flex: 1 },
-  banner:      { padding: 24, alignItems: 'center', gap: 8 },
+  banner:      { margin: 16, marginBottom: 12, borderRadius: 22, padding: 26, alignItems: 'center', gap: 9, boxShadow: '0 8px 20px rgba(61, 43, 142, 0.14)', elevation: 4 },
   avatar:      { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 3, borderColor: 'rgba(255,255,255,0.4)', alignItems: 'center', justifyContent: 'center' },
   avatarText:  { color: '#fff', fontSize: 26, fontWeight: '800', letterSpacing: -1 },
   name:        { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
@@ -529,9 +609,9 @@ const styles = StyleSheet.create({
   badge:       { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
   badgeText:   { color: '#fff', fontSize: 11, fontWeight: '700' },
   savedBanner: { margin: 14, borderWidth: 1, borderRadius: 10, padding: 10 },
-  card:        { margin: 14, marginBottom: 0, borderRadius: 20, borderWidth: 1, padding: 14, paddingBottom: 0 },
+  card:        { margin: 16, marginTop: 4, marginBottom: 0, borderRadius: 20, borderWidth: 1, padding: 18, paddingBottom: 4, boxShadow: '0 4px 14px rgba(61, 43, 142, 0.07)', elevation: 2 },
   cardHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  cardTitle:   { fontSize: 13, fontWeight: '700' },
+  cardTitle:   { fontSize: 15, fontWeight: '800', letterSpacing: -0.15 },
   editBtn:     { backgroundColor: C.purple, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 5 },
   signOutBtn:  { margin: 14, marginTop: 18, padding: 13, borderRadius: 14, borderWidth: 2, alignItems: 'center' },
   signOutText: { color: '#EF4444', fontSize: 14, fontWeight: '700' },

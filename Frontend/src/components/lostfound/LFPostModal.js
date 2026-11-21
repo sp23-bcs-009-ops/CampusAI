@@ -1,15 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  View, Text, Modal, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, KeyboardAvoidingView, Platform,
-  Image, ActivityIndicator
+  View, Text, TouchableOpacity, TextInput, StyleSheet, Image
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
+import DateTimeField from '../DateTimeField';
 import { C } from '../../constants/colors';
 import { LF_CATS } from '../../constants/config';
-import { ErrBanner, PrimaryButton, SectionLabel } from '../ui';
-import { storageUpload } from '../../firebase/firestore';
+import { PostModalShell, PostSubmit, PrimaryButton, SectionLabel } from '../ui';
+import { pickPostImage } from '../../utils/postImages';
 
 export default function LFPostModal({ visible, dark, onClose, onPost }) {
   const [step,     setStep]     = useState(1);
@@ -23,10 +20,6 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
   const [body,     setBody]     = useState('');
   const [images,   setImages]   = useState([]);
   const [err,      setErr]      = useState('');
-  const [showDatePick, setShowDatePick] = useState(false);
-  const [showTimePick, setShowTimePick] = useState(false);
-  const [dateObj,  setDateObj]  = useState(new Date());
-  const [timeObj,  setTimeObj]  = useState(new Date());
 
   const bg  = dark ? '#1A1A3E' : '#FFFFFF';
   const tp  = dark ? '#EDE9FF' : '#1A0F4A';
@@ -36,20 +29,8 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
   const inp = { borderWidth: 1.5, borderColor: bdr, borderRadius: 12, padding: 11, color: tp, backgroundColor: ib, fontSize: 13, marginBottom: 12 };
 
   async function pickImage() {
-    if (images.length >= 2) return;
-    const result = await ImagePicker.launchImageLibraryAsync({ 
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.1,
-      base64: true 
-    });
-    if (!result.canceled && result.assets?.length > 0) {
-      const asset = result.assets[0];
-      // Since Firebase Storage is unavailable, use base64 data URI
-      const imageUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-      setImages(prev => [...prev, { uri: imageUri }]);
-    }
+    const image = await pickPostImage(images, 2);
+    if (image) setImages(prev => [...prev, image]);
   }
 
   const [uploading, setUploading] = useState(false);
@@ -62,11 +43,8 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
     setUploading(true);
     setErr('');
     try {
-      // Bypass Firebase Storage and use the base64 data URIs directly
-      const finalImages = images;
-
       onPost({
-        id: `${Date.now()}`, type, cat, title, location, date, time, contact, body, images: finalImages,
+        id: `${Date.now()}`, type, cat, title, location, date, time, contact, body, images,
         resolved: false, postedBy: 'User',
         createdAt: new Date().toISOString().split('T')[0],
       });
@@ -85,12 +63,8 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleClose} />
-        <View style={[styles.sheet, { backgroundColor: bg, borderTopColor: bdr }]}>
-          <View style={[styles.handle, { backgroundColor: ts }]} />
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <PostModalShell visible={visible} onClose={handleClose} backgroundColor={bg} borderColor={bdr} handleColor={ts}>
+
 
             {/* ── Step 1: Warning ── */}
             {step === 1 && (
@@ -150,29 +124,13 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <View style={{ flex: 1 }}>
                     <SectionLabel text="Date *" dark={dark} />
-                    <TouchableOpacity onPress={() => setShowDatePick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 13, color: date ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{date || 'YYYY-MM-DD'}</Text>
-                      <Text>📅</Text>
-                    </TouchableOpacity>
-                    {showDatePick && (
-                      <DateTimePicker value={dateObj} mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowDatePick(Platform.OS === 'ios'); if (s) { setDateObj(s); setDate(s.toISOString().split('T')[0]); } }} />
-                    )}
+                    <DateTimeField value={date || 'YYYY-MM-DD'} textColor={date ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} mode="date" icon="📅" onChange={setDate}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <SectionLabel text="Time" dark={dark} />
-                    <TouchableOpacity onPress={() => setShowTimePick(true)}
-                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                      <Text style={{ fontSize: 13, color: time ? tp : (dark?'#4A3A7A':'#B0A8D8') }}>{time || 'HH:MM'}</Text>
-                      <Text>⏰</Text>
-                    </TouchableOpacity>
-                    {showTimePick && (
-                      <DateTimePicker value={timeObj} mode="time" is24Hour
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(_, s) => { setShowTimePick(Platform.OS === 'ios'); if (s) { setTimeObj(s); setTime(`${String(s.getHours()).padStart(2,'0')}:${String(s.getMinutes()).padStart(2,'0')}`); } }} />
-                    )}
+                    <DateTimeField value={time || 'HH:MM'} textColor={time ? tp : (dark ? '#4A3A7A' : '#B0A8D8')} mode="time" icon="⏰" is24Hour onChange={setTime}
+                      style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} />
                   </View>
                 </View>
 
@@ -201,28 +159,15 @@ export default function LFPostModal({ visible, dark, onClose, onPost }) {
                   </View>
                 )}
 
-                <ErrBanner msg={err} />
-                {uploading ? (
-                  <View style={{ alignItems: 'center', padding: 14 }}>
-                    <ActivityIndicator size="small" color={C.purple} />
-                    <Text style={{ fontSize: 12, color: ts, marginTop: 8 }}>Uploading...</Text>
-                  </View>
-                ) : (
-                  <PrimaryButton label="Post" onPress={handlePost} style={{ marginTop: 4 }} />
-                )}
+                <PostSubmit error={err} uploading={uploading} label="Post" mutedColor={ts} onSubmit={handlePost} />
               </>
             )}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+    </PostModalShell>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
-  sheet:       { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 20, paddingBottom: 40, maxHeight: '92%' },
-  handle:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, opacity: 0.4 },
   heading:     { fontSize: 15, fontWeight: '700', marginBottom: 14 },
   warnBox:     { borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 18 },
   warnTitle:   { fontSize: 13, fontWeight: '700', marginBottom: 6 },

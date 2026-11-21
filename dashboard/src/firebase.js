@@ -67,5 +67,3 @@ export async function fsGet(path) {
   const d = await r.json();
   return { _docId: d.name?.split('/').pop(), ...deserialiseFields(d.fields || {}) };
 }
-
-export const PROJECT_ID = FIREBASE_CONFIG.projectId;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated, PanResponder, Modal, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
@@ -10,7 +10,7 @@ function formatDate(value) {
   return new Date(Number(value)).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement, openRequest = 0 }) {
+export default function EmergencyAnnouncements({ user, dark, announcements, readIds, unreadCount, markRead, markAllRead, createAnnouncement, editAnnouncement, deleteAnnouncement }) {
   const [open, setOpen] = useState(false);
   const [composer, setComposer] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -20,7 +20,6 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
   const slide = useRef(new Animated.Value(-180)).current;
   const dragX = useRef(new Animated.Value(0)).current;
   const dismissTimer = useRef(null);
-  const lastOpenRequest = useRef(openRequest);
 
   function dismissActive(markAsRead = true) {
     if (!active) return;
@@ -92,16 +91,9 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
     markAllRead();
   }
 
-  useEffect(() => {
-    if (openRequest && openRequest !== lastOpenRequest.current) {
-      lastOpenRequest.current = openRequest;
-      openHistory();
-    }
-  }, [openRequest]);
-
   return (
     <>
-      <TouchableOpacity onPress={openHistory} accessibilityLabel="Emergency announcements" style={styles.iconButton}>
+      <TouchableOpacity onPress={openHistory} accessibilityLabel="Important Announcements Mailbox" style={styles.iconButton}>
         <Text style={styles.bell}>⚠</Text>
         {unreadCount > 0 && <View style={styles.count}><Text style={styles.countText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View>}
       </TouchableOpacity>
@@ -111,7 +103,7 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
           <Animated.View {...panResponder.panHandlers} style={[styles.toast, { transform: [{ translateY: slide }, { translateX: dragX }] }] }>
             <View style={styles.toastIcon}><Text style={{ color: '#fff', fontSize: 19, fontWeight: '900' }}>!</Text></View>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => { markRead(active.id); openHistory(); }}>
-              <Text style={styles.toastLabel}>EMERGENCY ANNOUNCEMENT</Text>
+              <Text style={styles.toastLabel}>IMPORTANT ANNOUNCEMENT</Text>
               <Text style={styles.toastTitle} numberOfLines={1} ellipsizeMode="tail">{active.title}</Text>
               <Text style={styles.toastBody} numberOfLines={2}>{active.body}</Text>
             </TouchableOpacity>
@@ -128,14 +120,14 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
             <View style={styles.panelHeader}>
               <View>
                 <Text style={styles.panelKicker}>CAMPUS ALERTS</Text>
-                <Text style={[styles.panelTitle, { color: tp }]}>Emergency Announcements</Text>
+                <Text style={[styles.panelTitle, { color: tp }]}>Important Announcements (Mailbox)</Text>
               </View>
               <TouchableOpacity onPress={() => setOpen(false)}><Text style={{ color: ts, fontSize: 22 }}>✕</Text></TouchableOpacity>
             </View>
-            {canManage && <TouchableOpacity onPress={() => showComposer()} style={styles.addButton}><Text style={styles.addText}>＋ New Emergency Announcement</Text></TouchableOpacity>}
+            {canManage && <TouchableOpacity onPress={() => showComposer()} style={styles.addButton}><Text style={styles.addText}>＋ New Announcement</Text></TouchableOpacity>}
             <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
               {announcements.length === 0
-                ? <Text style={[styles.empty, { color: ts }]}>No emergency announcements.</Text>
+                ? <Text style={[styles.empty, { color: ts }]}>No important announcements.</Text>
                 : announcements.map(item => (
                   <View key={item.id} style={[styles.item, { borderColor: bdr, backgroundColor: dark ? '#1A1A3E' : '#FFF7F2' }]}>
                     <View style={styles.itemTop}><Text style={styles.itemTag}>URGENT</Text><Text style={[styles.date, { color: ts }]}>{formatDate(item.createdAt)}</Text></View>
@@ -151,7 +143,7 @@ export default function EmergencyAnnouncements({ user, dark, announcements, read
 
       <Modal visible={composer} transparent animationType="fade" onRequestClose={() => setComposer(false)}>
         <View style={styles.modalBackdrop}><View style={[styles.composer, { backgroundColor: bg }]}>
-          <Text style={[styles.panelTitle, { color: tp }]}>{editing ? 'Edit' : 'New'} Emergency Announcement</Text>
+          <Text style={[styles.panelTitle, { color: tp }]}>{editing ? 'Edit' : 'New'} Important Announcement</Text>
           <TextInput value={title} onChangeText={setTitle} placeholder="Title" placeholderTextColor="#A09AB8" style={[styles.input, { color: tp, borderColor: bdr }]} />
           <TextInput value={body} onChangeText={setBody} placeholder="What happened?" placeholderTextColor="#A09AB8" multiline style={[styles.input, styles.bodyInput, { color: tp, borderColor: bdr }]} />
           <View style={styles.composerActions}><TouchableOpacity onPress={() => setComposer(false)}><Text style={{ color: ts, fontWeight: '700' }}>Cancel</Text></TouchableOpacity><TouchableOpacity onPress={save} style={styles.saveButton}><Text style={{ color: '#fff', fontWeight: '700' }}>Publish</Text></TouchableOpacity></View>

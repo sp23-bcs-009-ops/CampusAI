@@ -19,8 +19,8 @@ CampusAI/
     │   └── config.js               # All app-wide config, permissions, floor map data
     │
     ├── firebase/
-    │   ├── config.js               # Firebase SDK keys (fill in YOUR_* values)
-    │   └── firestore.js            # fsGet / fsSet / fsAdd / fsUpdate / fsDelete / fsList / storageUpload
+    │   ├── config.js               # Firebase REST API project configuration
+    │   └── firestore.js            # Firebase Auth and Firestore REST helpers
     │
     ├── utils/
     │   └── helpers.js              # Auth helpers, time utils, room status, sort, event status
@@ -170,7 +170,7 @@ npx expo start --ios
 ## 📝 Notes for Backend Team
 
 - All Firestore calls use REST API (no Firebase SDK dependency)
-- `src/firebase/firestore.js` exports: `fsGet`, `fsSet`, `fsAdd`, `fsUpdate`, `fsDelete`, `fsList`, `storageUpload`
+- `src/firebase/firestore.js` exports the Firebase Auth and Firestore REST helpers used by the app.
 - PDF upload: frontend sends the PDF to FastAPI; Text PDF data is isolated in `text_pdf_timetables`
 - Image/scan PDFs are unsupported and are not sent to Vision OCR
-- No auth token implementation yet — add Firebase Auth Bearer token to fetch headers in `firestore.js` when ready
+- Firestore writes include the signed-in Firebase Auth bearer token.

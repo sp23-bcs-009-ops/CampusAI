@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker from '../components/DateTimePickerAdapter';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
 import { ALLOWED_DOMAIN, USER_TYPES } from '../constants/config';
 import { getSemester, getDepartmentLabel, getDept } from '../utils/helpers';
 import { COMSATSLogo, InputField, PrimaryButton, ErrBanner } from '../components/ui';
-import { authSignUp, authSignIn, authAnonymousSignIn, authSendVerification, authGetUser, authGoogleSignIn, saveUserProfile, getUserProfile } from '../firebase/firestore';
+import { authSignUp, authSignIn, authSendVerification, authSendPasswordReset, authGetUser, saveUserProfile, getUserProfile } from '../firebase/firestore';
 import { upsertTeacherRecord } from '../firebase/teachers';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-
-WebBrowser.maybeCompleteAuthSession();
-
-// ⚠️ Replace with your actual Google OAuth Client IDs from Google Cloud Console
-const GOOGLE_CLIENT_ID_ANDROID = '245229034731-v0c3ul7q8206r6t8drttjen4lcbvb6c9.apps.googleusercontent.com';
-const GOOGLE_CLIENT_ID_WEB     = '245229034731-v0c3ul7q8206r6t8drttjen4lcbvb6c9.apps.googleusercontent.com';
 
 export default function LoginScreen({ onLogin, onGuest }) {
   const [mode,        setMode]        = useState('login');
@@ -26,6 +18,7 @@ export default function LoginScreen({ onLogin, onGuest }) {
   const [selType,     setSelType]     = useState(null);
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName,    setFullName]    = useState('');
   const [dob,         setDob]         = useState('');
   const [dobDate,     setDobDate]     = useState(new Date(2000, 0, 1));
@@ -36,49 +29,34 @@ export default function LoginScreen({ onLogin, onGuest }) {
   const [loading,     setLoading]     = useState(false);
   const [awaitVerify, setAwaitVerify] = useState(false);
   const [idToken,     setIdToken]     = useState(null);
-
-  // ── Google Sign In ───────────────────────────────────────────────────────
-  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
-    androidClientId: GOOGLE_CLIENT_ID_ANDROID,
-    webClientId:     GOOGLE_CLIENT_ID_WEB,
-  });
-
-  useEffect(() => {
-    if (googleResponse?.type === 'success') {
-      const { id_token } = googleResponse.authentication;
-      handleGoogleResponse(id_token);
-    }
-  }, [googleResponse]);
-
-  async function handleGoogleResponse(token) {
-    setLoading(true); setErr('');
-    try {
-      const auth = await authGoogleSignIn(token);
-      const gEmail = auth.email;
-      if (!gEmail.endsWith(ALLOWED_DOMAIN)) {
-        setErr(`Please use your university email (${ALLOWED_DOMAIN})`);
-        setLoading(false); return;
-      }
-      const dept = getDept(gEmail);
-      onLogin({
-        uid: auth.localId,
-        email: gEmail,
-        type: 'student',
-        name: auth.displayName || gEmail.split('@')[0],
-        fullName: auth.displayName || '',
-        dob: '', phone: '',
-        semester: getSemester(gEmail),
-        department: getDepartmentLabel(gEmail),
-        dept,
-        photoUrl: auth.photoUrl || null,
-      });
-    } catch (ex) {
-      setErr('Google sign in failed: ' + ex.message);
-    } finally { setLoading(false); }
-  }
+  const [resetNotice, setResetNotice] = useState('');
 
   function validateEmail(mail) {
     if (!mail.endsWith(ALLOWED_DOMAIN)) return `Email must end with ${ALLOWED_DOMAIN}`;
+    return null;
+  }
+
+  function validateSignupEmailForRole(mail, role) {
+    const accountName = mail.slice(0, -ALLOWED_DOMAIN.length);
+    const studentAccountPattern = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9-]+$/;
+    const teacherStaffAccountPattern = /^[A-Za-z]+$/;
+    if (role === 'student') {
+      if (!studentAccountPattern.test(accountName)) {
+        if (teacherStaffAccountPattern.test(accountName)) {
+          return 'Teacher and Staff cannot create an account with a student role.';
+        }
+        return 'Student email must contain letters and numbers (hyphens are allowed).';
+      }
+      return null;
+    }
+    if (role === 'teacher' || role === 'staff') {
+      if (!teacherStaffAccountPattern.test(accountName)) {
+        if (studentAccountPattern.test(accountName)) {
+          return 'Students cannot create an account with a teacher or staff role.';
+        }
+        return 'Teacher and Staff email account names can contain letters only.';
+      }
+    }
     return null;
   }
 
@@ -87,6 +65,7 @@ export default function LoginScreen({ onLogin, onGuest }) {
     const dept = getDept(email);
     return {
       email, type: selType || 'student',
+      notificationEnabled: true,
       name: email.split('@')[0],
       fullName, dob, phone: '',
       semester: (selType === 'student' && isRepeater) ? repeatSem : getSemester(email),
@@ -94,6 +73,28 @@ export default function LoginScreen({ onLogin, onGuest }) {
       department: getDepartmentLabel(email),
       dept,
     };
+  }
+
+  async function handlePasswordReset() {
+    const normalizedEmail = email.trim().toLowerCase();
+    const validationError = validateEmail(normalizedEmail);
+    if (validationError) { setErr(validationError); setResetNotice(''); return; }
+
+    setErr('');
+    setResetNotice('');
+    setLoading(true);
+    try {
+      await authSendPasswordReset(normalizedEmail);
+      setResetNotice('Password reset email sent. Open the link in your inbox to verify your account and set a new password.');
+    } catch (ex) {
+      const code = String(ex.message || '');
+      if (code.includes('EMAIL_NOT_FOUND') || code.includes('USER_NOT_FOUND')) {
+        // Keep the response neutral so the form does not disclose registered accounts.
+        setResetNotice('If an account exists for this address, a password reset email will be sent.');
+      } else {
+        setErr(code);
+      }
+    } finally { setLoading(false); }
   }
 
   async function handleLogin() {
@@ -129,29 +130,6 @@ if (profile) {
     } finally { setLoading(false); }
   }
 
-  async function handleTestLogin(type) {
-    setLoading(true); setErr('');
-    try {
-      const auth = await authAnonymousSignIn();
-      const normalizedType = type;
-      const dept = 'cs';
-      const departmentLabel = 'Test Account';
-      onLogin({
-        uid: auth.localId,
-        email: `test-${type}@local.test`,
-        type: normalizedType,
-        testMode: true,
-        name: `Test ${type}`,
-        fullName: `Test ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-        dob: '', phone: '', semester: 7,
-        department: departmentLabel,
-        dept,
-      });
-    } catch (ex) {
-      setErr('Test account failed: ' + ex.message);
-    } finally { setLoading(false); }
-  }
-
   // BUG FIX: handleSignupNext was placed after its usage — moved before render (consistent order)
   function handleSignupNext() {
     if (!selType) { setErr('Please select your role.'); return; }
@@ -161,9 +139,12 @@ if (profile) {
   async function handleSignupSubmit() {
     const e = validateEmail(email);
     if (e) { setErr(e); return; }
+    const roleEmailError = validateSignupEmailForRole(email, selType);
+    if (roleEmailError) { setErr(roleEmailError); return; }
     if (!fullName.trim()) { setErr('Full name is required.'); return; }
     if (!dob)             { setErr('Date of birth is required.'); return; }
     if (password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    if (password !== confirmPassword) { setErr('Passwords do not match.'); return; }
     setErr(''); setLoading(true);
     try {
       const auth = await authSignUp(email, password);
@@ -233,7 +214,7 @@ async function handleCheckVerification() {
         <View style={styles.tabRow}>
           {['login', 'signup'].map(m => (
             <TouchableOpacity key={m}
-              onPress={() => { setMode(m); setErr(''); setStep(1); }}
+              onPress={() => { setMode(m); setErr(''); setStep(1); setConfirmPassword(''); }}
               style={[styles.tabBtn, mode === m && styles.tabBtnActive]}>
               <Text style={[styles.tabBtnText, mode === m && styles.tabBtnTextActive]}>
                 {m === 'login' ? 'Sign In' : 'Sign Up'}
@@ -271,7 +252,7 @@ async function handleCheckVerification() {
           {/* ── Login ── */}
           {!awaitVerify && mode === 'login' && (
             <View style={styles.authCard}>
-              <InputField label="University Email" value={email} onChangeText={v => { setEmail(v); setErr(''); }}
+              <InputField label="University Email" value={email} onChangeText={v => { setEmail(v); setErr(''); setResetNotice(''); }}
                 placeholder="sp23-bcs-012@cuiatk.edu.pk" keyboardType="email-address" />
               <InputField label="Password" value={password} onChangeText={setPassword}
                 placeholder="••••••••" secureTextEntry />
@@ -280,22 +261,9 @@ async function handleCheckVerification() {
                 ? <ActivityIndicator color={C.purple} size="large" style={{ marginTop: 12 }} />
                 : <PrimaryButton label="Sign In" onPress={handleLogin} style={{ marginTop: 4 }} />
               }
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: 10 }}>
+              {!!resetNotice && <Text accessibilityRole="alert" style={{ color: '#166534', fontSize: 12, lineHeight: 18, marginTop: 10 }}>{resetNotice}</Text>}
+              <TouchableOpacity onPress={handlePasswordReset} disabled={loading} style={{ alignItems: 'center', marginTop: 10 }}>
                 <Text style={{ color: C.purple, fontSize: 12, fontWeight: '600' }}>Forgot password?</Text>
-              </TouchableOpacity>
-
-              <View style={styles.divider}>
-                <View style={styles.divLine} />
-                <Text style={styles.divText}>OR</Text>
-                <View style={styles.divLine} />
-              </View>
-
-              <TouchableOpacity
-                onPress={() => googlePromptAsync()}
-                disabled={!googleRequest || loading}
-                style={[styles.guestBtn, { flexDirection: 'row', gap: 10, marginBottom: 10, borderColor: '#DB4437' }]}>
-                <Text style={{ fontSize: 18 }}>🔴</Text>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#DB4437' }}>Continue with Google</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={onGuest} style={styles.guestBtn}>
@@ -303,21 +271,6 @@ async function handleCheckVerification() {
               </TouchableOpacity>
               <Text style={styles.guestNote}>Guest access · Limited features</Text>
 
-              {__DEV__ && (
-                <View style={{ marginTop: 18, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E2E0F5' }}>
-                  <Text style={{ color: '#6C47D4', fontSize: 11, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
-                    Development test account
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    {['student', 'teacher', 'staff'].map(type => (
-                      <TouchableOpacity key={type} onPress={() => handleTestLogin(type)} disabled={loading}
-                        style={{ flexBasis: '48%', borderWidth: 1, borderColor: '#B0A8D8', borderRadius: 10, padding: 8, alignItems: 'center' }}>
-                        <Text style={{ color: C.purple, fontSize: 11, fontWeight: '700' }}>{type}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
             </View>
           )}
 
@@ -337,7 +290,7 @@ async function handleCheckVerification() {
                 </TouchableOpacity>
               ))}
               {err ? <ErrBanner msg={err} /> : null}
-              <PrimaryButton label="Continue →" onPress={handleSignupNext} style={{ marginTop: 16 }} />
+              <PrimaryButton label="Continue" onPress={handleSignupNext} style={{ marginTop: 18 }} />
             </>
           )}
 
@@ -380,6 +333,9 @@ async function handleCheckVerification() {
                 placeholder="sp23-bcs-012@cuiatk.edu.pk" keyboardType="email-address" />
               <InputField label="Password" value={password} onChangeText={setPassword}
                 placeholder="Create a password" secureTextEntry />
+              <InputField label="Confirm Password *" value={confirmPassword}
+                onChangeText={value => { setConfirmPassword(value); setErr(''); }}
+                placeholder="Re-enter your password" secureTextEntry />
 
               {/* Repeater toggle — students only */}
               {selType === 'student' && (
@@ -438,18 +394,18 @@ const styles = StyleSheet.create({
   tabBtnTextActive: { color: '#fff' },
 
   form:        { paddingHorizontal: 18, paddingBottom: 20, backgroundColor: '#fff', flexGrow: 1 },
-  stepLabel:   { fontSize: 13, fontWeight: '700', color: C.purple, marginBottom: 12 },
+  stepLabel:   { fontSize: 13, fontWeight: '700', color: C.purple, marginTop: 16, marginBottom: 14 },
   roleRow:     { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 13, borderRadius: 14, borderWidth: 2, borderColor: '#E2E0F5', marginBottom: 10, backgroundColor: '#FAFAFE' },
   roleRowActive: { borderColor: C.purple, backgroundColor: '#EDE9FF' },
   roleLabel:   { fontSize: 14, fontWeight: '700', color: '#1A0F4A' },
   roleSub:     { fontSize: 11, color: '#9B7EF8' },
   roleBadge:   { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14, alignItems: 'flex-start' },
 
-  authCard:    { backgroundColor: '#fff', borderRadius: 18, marginHorizontal: 18, padding: 16, paddingBottom: 18, marginBottom: 20, boxShadow: '0 6px 12px rgba(26, 15, 74, 0.08)', elevation: 3 },
+  authCard:    { backgroundColor: '#f8f6f6d8', borderRadius: 18 , marginHorizontal: 18, padding: 18, paddingBottom: 20, marginBottom: 20, boxShadow: '0 6px 12px rgba(26, 15, 74, 0.08)', elevation: 3 },
   divider:     { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   divLine:     { flex: 1, height: 1, backgroundColor: '#E2E0F5' },
   divText:     { marginHorizontal: 10, fontSize: 11, color: '#B0A8D8', fontWeight: '600' },
-  guestBtn:    { borderWidth: 2, borderColor: '#E2E0F5', borderRadius: 14, padding: 12, alignItems: 'center', backgroundColor: '#FAFAFE' },
+  guestBtn:    { marginTop: 18, borderWidth: 2, borderColor: '#E2E0F5', borderRadius: 14, padding: 12, alignItems: 'center', backgroundColor: '#FAFAFE' },
   guestBtnText:{ fontSize: 13, fontWeight: '700', color: C.purple },
-  guestNote:   { textAlign: 'center', fontSize: 11, color: '#B0A8D8', marginTop: 6 },
+  guestNote:   { textAlign: 'center', fontSize: 11, color: '#B0A8D8', marginTop: 8 },
 });

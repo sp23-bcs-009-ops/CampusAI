@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View, Text, Modal, ScrollView, TouchableOpacity,
-  TextInput, StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, TouchableOpacity, TextInput, StyleSheet, Platform,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '../DateTimePickerAdapter';
 import { C } from '../../constants/colors';
 import { hasStaffRole, NOTIF_TYPES, DEPT_MAX_SEM, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
-import { ErrBanner, PrimaryButton, SectionLabel, Chip } from '../ui';
+import { getFloorMapRooms } from '../../utils/availableRooms';
+import { toSubjectName } from '../../utils/helpers';
+import { ErrBanner, PostModalShell, PrimaryButton, SectionLabel, Chip } from '../ui';
 
 const DEPT_LIST = [
   { key: 'cs', label: 'CS — Computer Science' },
@@ -14,17 +15,32 @@ const DEPT_LIST = [
   { key: 'ai', label: 'AI — Artificial Intelligence' },
 ];
 
+function parseLocalDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+  return match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+    : new Date();
+}
+
+function formatLocalDate(value) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * PostModal — Teacher only.
  * Step 1: type select
  * Step 2: dept + semester select
  * Step 3: form (subject drawn from timetable data for that dept/sem)
  */
-export default function PostModal({ visible, dark, onClose, onSubmit, editNotif, lectureSlots, subjectsMap, user, getAvailableRooms }) {
+export default function PostModal({
+  visible, dark, onClose, onSubmit, editNotif, lectureSlots, subjectsMap,
+  user, getAvailableRooms, teacherAssignments = [],
+}) {
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const isEdit = !!editNotif;
-
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
   const [step,       setStep]       = useState(isEdit ? 3 : 1);
   const [type,       setType]       = useState(editNotif?.type || null);
@@ -54,6 +70,7 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
     setRoom(editNotif?.room || null);
     setReason(editNotif?.reason || '');
     setDate(editNotif?.date || '');
+    setDateObj(parseLocalDate(editNotif?.date));
     setDeadline(editNotif?.deadline || '');
     setBody(editNotif?.body || '');
     setErr('');
@@ -68,9 +85,15 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
   const inp = { borderWidth: 1.5, borderColor: bdr, borderRadius: 12, padding: 11, color: tp, backgroundColor: ib, fontSize: 13, marginBottom: 12 };
 
   // Subjects available for selected dept+semester
-  const subjectOptions = (dept && semester && subjectsMap)
-    ? Array.from(new Set((subjectsMap[dept]?.[semester] || []).map(toSubjectName).filter(Boolean)))
-    : [];
+  const selectedTeacherAssignment = teacherAssignments.find(assignment =>
+    String(assignment.dept).toLocaleLowerCase() === String(dept).toLocaleLowerCase()
+      && Number(assignment.semester) === Number(semester)
+  );
+  const subjectOptions = user?.type === 'teacher'
+    ? (selectedTeacherAssignment?.subjects || [])
+    : (dept && semester && subjectsMap)
+      ? Array.from(new Set((subjectsMap[dept]?.[semester] || []).map(toSubjectName).filter(Boolean)))
+      : [];
 
   const semCount = dept ? (DEPT_MAX_SEM[dept] || 8) : 8;
 
@@ -78,8 +101,8 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
   const isStaffReservation = type === 'room_reservation';
   const isStaff = hasStaffRole(user);
   const staffOnly = user?.type === 'staff';
-  const ROOMS_LIST  = ['LT1','LT2','LT3','LT4','LT5','LT6','LT8','LT9'];
-  const availableRooms = getAvailableRooms ? getAvailableRooms({ dept, semester, date, lectureNum }) : [];
+  const ROOMS_LIST  = getFloorMapRooms();
+  const availableRooms = getAvailableRooms ? getAvailableRooms({ dept, semester, date, lectureNum, type }) : [];
 
   function reset() {
     setStep(isEdit ? 3 : 1); setType(editNotif?.type || null);
@@ -101,7 +124,7 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
         onChange: (_, selected) => {
           if (selected) {
             setDateObj(selected);
-            setDate(selected.toISOString().split('T')[0]);
+            setDate(formatLocalDate(selected));
             setRoom(null);
           }
         },
@@ -109,6 +132,15 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
       return;
     }
     setShowDatePick(true);
+  }
+
+  function handleDateChange(event, selected) {
+    setShowDatePick(Platform.OS === 'ios');
+    if (event?.type && event.type !== 'set') return;
+    if (!selected) return;
+    setDateObj(selected);
+    setDate(formatLocalDate(selected));
+    setRoom(null);
   }
 
   function openDeadlinePicker() {
@@ -168,12 +200,8 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
   const t = type ? NOTIF_TYPES[type] : null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleClose} />
-        <View style={[styles.sheet, { backgroundColor: bg, borderTopColor: bdr }]}>
-          <View style={[styles.handle, { backgroundColor: ts }]} />
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+    <PostModalShell visible={visible} onClose={handleClose} backgroundColor={bg} borderColor={bdr} handleColor={ts}>
+
 
             {/* ── Step 1: Type select ── */}
             {step === 1 && (
@@ -200,24 +228,54 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
               <>
                 <BackBtn onPress={() => setStep(1)} ts={ts} />
                 <Text style={[styles.heading, { color: tp }]}>Target class</Text>
-                <SectionLabel text="Department" dark={dark} />
-                <View style={styles.chipRow}>
-                  {DEPT_LIST.map(d => (
-                    <Chip key={d.key} label={d.label} active={dept === d.key}
-                      onPress={() => { setDept(d.key); setSemester(''); setSubject(''); }}
-                      dark={dark} />
-                  ))}
-                </View>
-                {dept && <>
-                  <SectionLabel text="Semester" dark={dark} style={{ marginTop: 12 }} />
-                  <View style={styles.chipRow}>
-                    {Array.from({ length: semCount }, (_, i) => i + 1).map(n => (
-                      <Chip key={n} label={`Sem ${n}`} active={semester === String(n)}
-                        onPress={() => { setSemester(String(n)); setSubject(''); }}
-                        dark={dark} />
-                    ))}
-                  </View>
-                </>}
+                {user?.type === 'teacher' ? (
+                  <>
+                    <SectionLabel text="Your teaching classes" dark={dark} />
+                    <View style={styles.chipRow}>
+                      {teacherAssignments.map(assignment => {
+                        const assignmentSemester = String(assignment.semester);
+                        const active = dept === assignment.dept && semester === assignmentSemester;
+                        return (
+                          <Chip
+                            key={`${assignment.dept}:${assignment.semester}`}
+                            label={`${assignment.dept.toUpperCase()} · Sem ${assignment.semester}`}
+                            active={active}
+                            onPress={() => {
+                              setDept(assignment.dept);
+                              setSemester(assignmentSemester);
+                              setSubject('');
+                            }}
+                            dark={dark}
+                          />
+                        );
+                      })}
+                    </View>
+                    <Text style={{ color: ts, fontSize: 11, marginTop: 8 }}>
+                      You can post only to classes and subjects assigned to you in the active timetable.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <SectionLabel text="Department" dark={dark} />
+                    <View style={styles.chipRow}>
+                      {DEPT_LIST.map(d => (
+                        <Chip key={d.key} label={d.label} active={dept === d.key}
+                          onPress={() => { setDept(d.key); setSemester(''); setSubject(''); }}
+                          dark={dark} />
+                      ))}
+                    </View>
+                    {dept && <>
+                      <SectionLabel text="Semester" dark={dark} style={{ marginTop: 12 }} />
+                      <View style={styles.chipRow}>
+                        {Array.from({ length: semCount }, (_, i) => i + 1).map(n => (
+                          <Chip key={n} label={`Sem ${n}`} active={semester === String(n)}
+                            onPress={() => { setSemester(String(n)); setSubject(''); }}
+                            dark={dark} />
+                        ))}
+                      </View>
+                    </>}
+                  </>
+                )}
                 {dept && semester && (
                   <PrimaryButton label="Continue →" onPress={() => { setErr(''); setStep(3); }}
                     style={{ marginTop: 16 }} />
@@ -267,25 +325,25 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
                 {/* Date + Lecture */}
                 {(usesLecture || isStaffReservation) && <>
                   <SectionLabel text="Date" dark={dark} />
-                  <TouchableOpacity
-                    onPress={openDatePicker}
-                    style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
-                    <Text style={{ fontSize: 13, color: date ? tp : (dark ? '#4A3A7A' : '#B0A8D8') }}>{date || 'Select date'}</Text>
-                          <Text style={{ fontSize: 16 }}>📅</Text>
-                  </TouchableOpacity>
-                  {showDatePick && (
-                    <DateTimePicker
-                      value={dateObj}
-                      mode="date"
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selected) => {
-                        setShowDatePick(Platform.OS === 'ios');
-                        if (event?.type !== 'set' || !selected) return;
-                        setDateObj(selected);
-                        setDate(selected.toISOString().split('T')[0]);
-                        setRoom(null);
-                      }}
-                    />
+                  {Platform.OS === 'web' ? (
+                    <DateTimePicker value={dateObj} mode="date" onChange={handleDateChange} />
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        onPress={openDatePicker}
+                        style={[inp, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                        <Text style={{ fontSize: 13, color: date ? tp : (dark ? '#4A3A7A' : '#B0A8D8') }}>{date || 'Select date'}</Text>
+                        <Text style={{ fontSize: 16 }}>📅</Text>
+                      </TouchableOpacity>
+                      {showDatePick && (
+                        <DateTimePicker
+                          value={dateObj}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          onChange={handleDateChange}
+                        />
+                      )}
+                    </>
                   )}
                   <SectionLabel text={isStaffReservation ? 'Time Slot' : 'Lecture Slot'} dark={dark} />
                   <View style={styles.lecRow}>
@@ -370,10 +428,8 @@ export default function PostModal({ visible, dark, onClose, onSubmit, editNotif,
                 <PrimaryButton label={isEdit ? 'Save Changes' : 'Post Notification'} onPress={handleSubmit} />
               </>
             )}
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+    </PostModalShell>
   );
 }
 
@@ -386,9 +442,6 @@ function BackBtn({ onPress, ts }) {
 }
 
 const styles = StyleSheet.create({
-  overlay:  { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
-  sheet:    { borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 20, paddingBottom: 40, maxHeight: '92%' },
-  handle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16, opacity: 0.4 },
   heading:  { fontSize: 15, fontWeight: '700', marginBottom: 14 },
   typeRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 14, borderWidth: 1.5, marginBottom: 10 },
   typeLabel:{ fontSize: 14, fontWeight: '700' },

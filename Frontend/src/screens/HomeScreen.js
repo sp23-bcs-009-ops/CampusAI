@@ -1,37 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, Modal, ActivityIndicator, TextInput,
+  StyleSheet, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as DocumentPicker from 'expo-document-picker';
-import { C } from '../constants/colors';
-import { SS } from '../constants/colors';
+import { C, SS } from '../constants/colors';
 import { DEPT_MAP, DEPT_MAX_SEM, DEPT_FLOOR_ROOMS, FALLBACK_LECTURE_SLOTS, ISSUE_CATEGORIES, can, hasStaffRole } from '../constants/config';
-import { getAiServerUrl } from '../constants/network';
-import { toMin, getFullRoomStatus, getRoomTimetableSlots } from '../utils/helpers';
-import { fsAdd, fsDelete, fsList, fsSet, fsUpdate, getAuthTokens } from '../firebase/firestore';
+import { toMin, getFullRoomStatus, getRoomTimetableSlots, roomDepartment } from '../utils/helpers';
+import { fsAdd, fsDelete, fsList, fsUpdate } from '../firebase/firestore';
 import ArcMap from '../components/map/ArcMap';
 import { COMSATSLogo } from '../components/ui';
 import { SCHEDULE_MODES } from '../hooks/useScheduleMode';
 import TimetableAdminPanel from '../components/TimetableAdminPanel';
+import TimetableUploadPanel from '../components/TimetableUploadPanel';
 import SearchClass from '../components/SearchClass';
 import {
   DEVELOPER_WEEKDAYS,
-  formatLocalDate,
+  createDeveloperClockInput,
   isDeveloperModeEnabled,
-  parseClockTime,
-  parseLocalDate,
-} from '../utils/developerClock';
-import { getClassMuteKey } from '../utils/classMutes';
+  isDeveloperClockInputValid,
+  formatLocalDate,
+  resetDeveloperClock as resetDeveloperClockState,
+  updateDeveloperClock as createUpdatedDeveloperClock,
+} from '../utils/developerMode';
 
 
 export default function HomeScreen({
   user, dark, now, timetable, lectureSlots, lectureSlotsByDepartmentSemester,
   timetableDocuments = [], timetableManifest,
   arrangedClasses, cancelledSlots,
-  ttMeta, onTTUploaded, onUpdateUser, onToggleClassMute, isGuest,
+  ttMeta, onTTUploaded, onUpdateUser, isGuest,
   schedule, examTimetable, officeTarget, onOfficeTargetHandled,
+  ltPeriodSettings, ltPeriodSettingsLoading, onSaveLTPeriodSettings, onResetLTPeriodSettings,
 }) {
   const [selectedDepartment, setSelectedDepartment] = useState('cs');
   const [selRoom, setSelRoom] = useState(null);
@@ -44,44 +44,21 @@ export default function HomeScreen({
   const [officeSaving, setOfficeSaving] = useState(false);
   const [officeError, setOfficeError] = useState('');
   const [showDeveloperClock, setShowDeveloperClock] = useState(false);
-  const [developerClock, setDeveloperClock] = useState(() => {
-    const base = now || new Date();
-    return {
-      mode: user?.developerClock?.mode || 'weekday',
-      weekday: String(user?.developerClock?.weekday ?? base.getDay()),
-      date: user?.developerClock?.date || formatLocalDate(base),
-      time: user?.developerClock?.time || `${String(base.getHours()).padStart(2, '0')}:${String(base.getMinutes()).padStart(2, '0')}`,
-    };
-  });
+  const [developerClock, setDeveloperClock] = useState(() => createDeveloperClockInput(user, now || new Date()));
   const developerClockEnabled = isDeveloperModeEnabled(user);
-  const developerClockInputValid = !!parseClockTime(developerClock.time)
-    && (developerClock.mode !== 'date' || !!parseLocalDate(developerClock.date));
+  const developerClockInputValid = isDeveloperClockInputValid(developerClock);
 
   function updateDeveloperClock(nextClock) {
     setDeveloperClock(nextClock);
-    onUpdateUser?.({ ...user, developerClock: nextClock });
+    onUpdateUser?.(createUpdatedDeveloperClock(user, nextClock));
   }
 
   function resetDeveloperClock() {
-    const current = new Date();
-    setDeveloperClock({
-      mode: 'weekday',
-      weekday: String(current.getDay()),
-      date: formatLocalDate(current),
-      time: `${String(current.getHours()).padStart(2, '0')}:${String(current.getMinutes()).padStart(2, '0')}`,
-    });
-    onUpdateUser?.({ ...user, developerClock: null });
+    const reset = resetDeveloperClockState(user);
+    setDeveloperClock(reset.clock);
+    onUpdateUser?.(reset.user);
     setShowDeveloperClock(false);
   }
-
-  const roomDepartment = (roomId) => {
-    const room = String(roomId || '').trim();
-    if (!room) return 'cs';
-    if (/^(Electric|Computer Lab|DLD\/MP|Communication|Electronics\/ECA|Physics|Control System|Embedded System|Industrial Electronics|Research|Final Year Project|Seminar Hall|EE\s+Com\s+Lab|EE\s+DLD\s+Lab|ECA\s+Lab|EM\s+Lab|IE\s+Lab)/i.test(room)) return 'ee';
-    if (/^(Lecture Hall|Class Room|LH\s*\d|CR\s*\d)/i.test(room)) return 'math';
-    if (/^(LT|Lab)/i.test(room)) return 'cs';
-    return 'cs';
-  };
 
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()];
@@ -97,7 +74,10 @@ export default function HomeScreen({
   const isHoliday = currentMode === 'holiday';
   const isExam = currentMode === 'exam';
   const activeTimetable = isExam ? (examTimetable?.timetables || {}) : timetable;
-  const visibleTimetable = isHoliday ? {} : activeTimetable;
+  const visibleTimetable = React.useMemo(
+    () => isHoliday ? {} : activeTimetable,
+    [isHoliday, activeTimetable],
+  );
   const activeLectureSlots = isExam
     ? (examTimetable?.lectureSlots || slots)
     : slots;
@@ -120,15 +100,15 @@ export default function HomeScreen({
   }, [user?.email, user?.uid]);
 
   const viewerId = user?.uid || user?.email || '';
-  const visibleIssueReports = issueReports.filter(report =>
+  const visibleIssueReports = React.useMemo(() => issueReports.filter(report =>
     report.status === 'acknowledged' || report.status === 'completed'
       || hasStaffRole(user)
       || report.reporterId === viewerId
-  );
-  const markerReports = visibleIssueReports.filter(report =>
+  ), [issueReports, user, viewerId]);
+  const markerReports = React.useMemo(() => visibleIssueReports.filter(report =>
     report.status !== 'pending' || hasStaffRole(user) || report.reporterId === viewerId
-  );
-  const reportedIssues = Object.fromEntries(
+  ), [visibleIssueReports, user, viewerId]);
+  const reportedIssues = React.useMemo(() => Object.fromEntries(
     Object.entries(markerReports.reduce((groups, report) => {
       (groups[report.roomId] ||= []).push(report);
       return groups;
@@ -136,7 +116,7 @@ export default function HomeScreen({
       roomId,
       reports.every(report => report.status === 'completed') ? 'completed' : 'active',
     ])
-  );
+  ), [markerReports]);
 
   async function createIssueReport(report) {
     const created = {
@@ -182,7 +162,7 @@ export default function HomeScreen({
 
   const todayClasses = Object.values(visibleTimetable || {})
     .flat()
-    .filter(s => s?.isMine && !s?.isMuted
+    .filter(s => s?.isMine
       && (s.day === dayName || (isExam && String(s.day).slice(0, 10) === formatLocalDate(now))))
     .sort((a, b) => toMin(a.start) - toMin(b.start));
   const currentClass = todayClasses.find(s => cur >= toMin(s.start) && cur < toMin(s.end));
@@ -217,7 +197,7 @@ export default function HomeScreen({
   const nextClass = todayClasses.find(s => toMin(s.start) > cur);
   const roomLabel = (slot) => slot?.room ? ` · ${slot.room}` : '';
 
-  function handleMapRoomPress({ roomId, room } = {}) {
+  const handleMapRoomPress = React.useCallback(({ roomId, room } = {}) => {
     if (!roomId) return;
     setOfficeFocus(null);
     const officeRoomType = room?.type === 'office' && !/(lab|conference|common room)/i.test(`${room.id} ${room.label || ''}`);
@@ -227,7 +207,7 @@ export default function HomeScreen({
       return;
     }
     setSelRoom(roomId);
-  }
+  }, [department, floor]);
 
   async function assignTeacherOffice(teacher) {
     if (!teacher?._docId || !officeRoom) return;
@@ -265,7 +245,7 @@ export default function HomeScreen({
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right']}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 32, width: '100%', maxWidth: 1280, alignSelf: 'center' }}>
 
         {/* Top header */}
         <View style={[styles.homeHeader, { backgroundColor: dark ? C.purpleDeep : C.purple }]}>
@@ -392,8 +372,8 @@ export default function HomeScreen({
         )}
 
         {/* Admin: TT Upload */}
-        {(isExam ? hasStaffRole(user) : can.uploadTimetable(user)) && (
-          <AdminTTUpload dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
+        {can.uploadTimetable(user) && (
+          <TimetableUploadPanel dark={dark} ttMeta={ttMeta} examTimetable={examTimetable} mode={currentMode} onUploaded={onTTUploaded} />
         )}
         {hasStaffRole(user) && (
           <TimetableAdminPanel
@@ -401,6 +381,8 @@ export default function HomeScreen({
             documents={isExam ? (examTimetable?.rawDocuments || []) : timetableDocuments}
             manifest={isExam ? (examTimetable?.manifest || null) : timetableManifest}
             onSaved={onTTUploaded}
+            ltPeriodSettings={ltPeriodSettings} ltPeriodSettingsLoading={ltPeriodSettingsLoading}
+            onSaveLTPeriodSettings={onSaveLTPeriodSettings} onResetLTPeriodSettings={onResetLTPeriodSettings}
           />
         )}
 
@@ -546,7 +528,6 @@ export default function HomeScreen({
           roomId={selRoom} status={selectedRoomStatus} dark={dark}
           timetable={visibleTimetable} now={now} slots={activeLectureSlots} mode={currentMode}
           user={user} issueReports={visibleIssueReports}
-          onToggleClassMute={onToggleClassMute}
           onCreateIssue={createIssueReport} onUpdateIssue={updateIssueReport} onDeleteIssue={deleteIssueReport}
           onClose={() => setSelRoom(null)}
         />
@@ -560,7 +541,6 @@ export default function HomeScreen({
           semester={user?.type === 'staff' ? null : (user?.semester || 7)}
           department={user?.type === 'staff' ? '' : user?.dept}
           user={user}
-          onToggleClassMute={onToggleClassMute}
           lectureSlotsByDepartmentSemester={lectureSlotsByDepartmentSemester}
           ttMeta={isExam ? (examTimetable?.meta || null) : ttMeta}
           onClose={() => setShowTT(false)}
@@ -571,7 +551,7 @@ export default function HomeScreen({
 }
 
 // ─── Room Popup ───────────────────────────────────────────────────────────
-function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regular', user, issueReports = [], onToggleClassMute, onCreateIssue, onUpdateIssue, onDeleteIssue, onClose }) {
+function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regular', user, issueReports = [], onCreateIssue, onUpdateIssue, onDeleteIssue, onClose }) {
   const { status: st, slot, issue } = status;
   const c = SS[st][dark ? 'd' : 'l'];
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
@@ -625,15 +605,6 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
           <Text style={{ color: ts, fontSize: 14, marginBottom: 8 }}>
             {mode === 'holiday' ? 'Currently Holiday — no timetable is active.' : mode === 'exam' ? 'No exam scheduled in this slot.' : 'No class right now.'}
           </Text>
-        )}
-        {slot && (slot.isMine || slot.isMuted) && onToggleClassMute && (
-          <TouchableOpacity
-            onPress={() => onToggleClassMute(slot, roomId, mode)}
-            style={[styles.reportIssueButton, { marginTop: 10, backgroundColor: slot.isMuted ? '#DCFCE7' : '#FEE2E2' }]}>
-            <Text style={{ color: slot.isMuted ? '#166534' : '#B91C1C', fontSize: 12, fontWeight: '800' }}>
-              {slot.isMuted ? 'Unmute this class' : 'Mute this class'}
-            </Text>
-          </TouchableOpacity>
         )}
         {next && (
           <View style={[styles.nextBox, { backgroundColor: dark ? '#1A1A3E' : '#F0EEFF', borderColor: bdr }]}>
@@ -726,21 +697,25 @@ function RoomPopup({ roomId, status, dark, timetable, now, slots, mode = 'regula
 }
 
 // ─── Timetable Modal ──────────────────────────────────────────────────────
-function TimetableModal({ dark, timetable, mode = 'regular', semester, department, user, lectureSlotsByDepartmentSemester, ttMeta, onToggleClassMute, onClose }) {
+function TimetableModal({ dark, timetable, mode = 'regular', semester, department, user, lectureSlotsByDepartmentSemester, ttMeta, onClose }) {
   const isStaff = user?.type === 'staff';
+  const isTeacher = user?.type === 'teacher';
   const isExamView = mode === 'exam';
   const [staffDept, setStaffDept] = useState('');
   const [staffSemester, setStaffSemester] = useState('');
   const [teacherSearch, setTeacherSearch] = useState('');
   const [selectedTeacher, setSelectedTeacher] = useState('');
-  const [selectedMuteKey, setSelectedMuteKey] = useState(null);
   const tp = dark ? '#EDE9FF' : '#1A0F4A';
   const ts = dark ? '#9B7EF8' : '#6C47D4';
   const bdr = dark ? '#2A1C6B' : '#E2E0F5';
   const bg = dark ? '#0A0A1E' : '#F5F4FF';
   const cardBg = dark ? '#1A1A3E' : '#FFFFFF';
-  const targetSemester = isStaff ? (staffSemester ? Number(staffSemester) : null) : Number(semester || 7);
-  const targetDepartment = isStaff ? staffDept : String(department || '').toLowerCase();
+  const targetSemester = isStaff
+    ? (staffSemester ? Number(staffSemester) : null)
+    : isTeacher ? null : Number(semester || 7);
+  const targetDepartment = isStaff
+    ? staffDept
+    : isTeacher ? '' : String(department || '').toLowerCase();
   const allSlots = Object.values(timetable || {}).flat().filter(slot => slot.day);
   const examDepartments = [...new Set(allSlots.map(slot => String(slot.dept || slot._dept || '').toLowerCase()).filter(Boolean))].sort();
   const examSemesters = [...new Set(allSlots
@@ -762,7 +737,9 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   const matchingSlots = staffHasTarget ? baseSlots.filter(slot =>
     (!selectedTeacher || String(slot.prof || slot.teacher || '') === selectedTeacher)
     // Exam entries carry no per-user `mine` flag; dept/semester already scoped them.
-    && (isExamView || !personalTimetableViewer || Boolean(slot.isMine ?? slot.mine))
+    && (isTeacher
+      ? Boolean(slot.isMine ?? slot.mine)
+      : isExamView || !personalTimetableViewer || Boolean(slot.isMine ?? slot.mine))
   ) : [];
   const departmentSemesterKey = targetDepartment && targetSemester ? `${targetDepartment}_sem${targetSemester}` : '';
   const slots = lectureSlotsByDepartmentSemester?.[departmentSemesterKey] || {};
@@ -790,8 +767,6 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
       prof: slot.prof || slot.teacher,
       room: slot.room || Object.entries(timetable || {}).find(([, list]) => list?.includes(slot))?.[0] || '',
       mine: Boolean(slot.isMine ?? slot.mine),
-      isMuted: Boolean(slot.isMuted),
-      muteKey: slot.muteKey || getClassMuteKey(slot, slot.room, mode),
     });
   }
   const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -829,7 +804,11 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
         {/* Header */}
         <View style={[styles.ttHeader, { backgroundColor: C.purple }]}>
           <View>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>{isStaff ? (isExamView ? 'STAFF EXAM VIEW' : 'STAFF TIMETABLE VIEW') : `BS ${String(targetDepartment).toUpperCase()} · SEM ${targetSemester}${isExamView ? ' · EXAM' : ''}`}</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' }}>{isStaff
+              ? (isExamView ? 'STAFF EXAM VIEW' : 'STAFF TIMETABLE VIEW')
+              : isTeacher
+                ? `TEACHER VIEW · ALL CLASSES${isExamView ? ' · EXAM' : ''}`
+                : `BS ${String(targetDepartment).toUpperCase()} · SEM ${targetSemester}${isExamView ? ' · EXAM' : ''}`}</Text>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '800' }}>{isExamView ? 'Exam Timetable' : 'Weekly Timetable'}</Text>
             {ttMeta?.effectiveDate && (
               <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>w.e.f {ttMeta.effectiveDate}</Text>
@@ -898,17 +877,13 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
             <View key={day || idx} style={{ padding: 12 }}>
               <Text style={{ fontSize: 12, fontWeight: '800', color: tp, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{displayExamDate(day)}</Text>
               {(daySlots || []).map((s, i) => {
-                const canMute = Boolean(s.mine || s.isMuted) && !!onToggleClassMute;
-                const selected = selectedMuteKey === s.muteKey;
-                const accent = s.mine && !s.isMuted ? '#EF4444' : C.purple;
-                const badgeColor = s.mine && !s.isMuted ? '#B91C1C' : C.purple;
+                const accent = s.mine ? '#EF4444' : C.purple;
+                const badgeColor = s.mine ? '#B91C1C' : C.purple;
                 return (
-                  <View key={s.muteKey || i}>
+                  <View key={`${s.day}-${s.n}-${s.room}-${i}`}>
                     <TouchableOpacity
-                      activeOpacity={canMute ? 0.75 : 1}
-                      onPress={canMute ? () => setSelectedMuteKey(selected ? null : s.muteKey) : undefined}
-                      style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: accent, opacity: s.isMuted ? 0.65 : 1 }]}>
-                    <View style={[styles.ttLecBadge, { backgroundColor: s.mine && !s.isMuted ? '#FEE2E2' : '#EDE9FF', borderColor: accent }]}>
+                      style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: accent }]}>
+                    <View style={[styles.ttLecBadge, { backgroundColor: s.mine ? '#FEE2E2' : '#EDE9FF', borderColor: accent }]}>
                       {isExamView ? (
                         <>
                           <Text style={{ fontSize: 8, fontWeight: '800', color: badgeColor }}>{s.start}</Text>
@@ -930,25 +905,12 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
                       </Text>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 }}>
                         <Text style={{ fontSize: 10, color: ts }}>{s.prof}</Text>
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: s.mine && !s.isMuted ? '#B91C1C' : C.purple }}>{s.room}</Text>
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: s.mine ? '#B91C1C' : C.purple }}>{s.room}</Text>
                       </View>
                       {isExamView && s.courseCode ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Course code: {s.courseCode}</Text> : null}
                       {isExamView && s.invigilators ? <Text style={{ fontSize: 9, color: ts, marginTop: 3 }}>Invigilators: {s.invigilators}</Text> : null}
-                      {s.isMuted && <Text style={{ fontSize: 9, color: '#B91C1C', fontWeight: '800', marginTop: 3 }}>Muted from My Class</Text>}
                     </View>
                     </TouchableOpacity>
-                    {canMute && selected && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          onToggleClassMute(s, s.room, mode);
-                          setSelectedMuteKey(null);
-                        }}
-                        style={{ backgroundColor: s.isMuted ? '#DCFCE7' : '#FEE2E2', borderRadius: 9, padding: 9, alignItems: 'center', marginTop: 4 }}>
-                        <Text style={{ color: s.isMuted ? '#166534' : '#B91C1C', fontSize: 11, fontWeight: '800' }}>
-                          {s.isMuted ? 'Unmute this class' : 'Mute this class'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
                 );
               })}
@@ -960,129 +922,6 @@ function TimetableModal({ dark, timetable, mode = 'regular', semester, departmen
   );
 }
 
-// ─── Admin TT Upload ──────────────────────────────────────────────────────
-export function AdminTTUpload({ dark, ttMeta, examTimetable, mode, onUploaded }) {
-  const [uploading, setUploading] = useState(false);
-  const [status, setStatus] = useState(null);
-  const [msg, setMsg] = useState('');
-  const [progress, setProgress] = useState('');
-
-  const tp = dark ? '#EDE9FF' : '#1A0F4A';
-  const ts = dark ? '#9B7EF8' : '#6C47D4';
-  const bdr = dark ? '#2A1C6B' : '#E2E0F5';
-  const ib = dark ? '#0A0A1E' : '#F8F7FF';
-  const cardBg = dark ? '#12123A' : '#FFFFFF';
-  async function handleUpload() {
-    const isExamUpload = mode === 'exam';
-    const result = await DocumentPicker.getDocumentAsync({
-      type: isExamUpload
-        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : 'application/pdf',
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-    const file = result.assets?.[0];
-    if (!file) return;
-
-    setUploading(true); setStatus(null); setProgress(isExamUpload ? 'Sending Excel datesheet...' : 'Sending PDF...');
-    try {
-      const fileBlob = await fetch(file.uri).then(res => res.blob());
-
-      const formData = new FormData();
-      formData.append(isExamUpload ? 'xlsx' : 'pdf', fileBlob, file.name);
-      if (!isExamUpload) {
-        formData.append('version', `v${new Date().toLocaleDateString('en-GB')}`);
-        formData.append('effectiveDate', new Date().toISOString().split('T')[0]);
-      }
-      formData.append('scheduleMode', mode === 'exam' ? 'exam' : 'regular');
-
-      const { idToken } = getAuthTokens();
-      if (!idToken) throw new Error('Please sign in again before uploading.');
-
-      setProgress(isExamUpload ? 'Validating Excel sheets and exam rows...' : 'Extracting timetable cells with Python layout rules...');
-
-      const response = await fetch(`${getAiServerUrl()}${isExamUpload ? '/upload-exam-timetable' : '/upload-timetable'}`, {
-        method: 'POST',
-        body: formData,
-        headers: { Authorization: `Bearer ${idToken}` },
-        // Don't set Content-Type header - fetch will set it with proper boundary
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || data.detail || data.error || 'Server error');
-
-      setStatus('success');
-      setMsg(isExamUpload
-        ? `✓ ${data.message}\nClasses: ${data.classCount} · Exams: ${data.rowCount}`
-        : `✓ ${data.message}\nRooms: ${data.roomCount} · Subjects: ${data.subjectCount}`);
-      onUploaded?.({});
-    } catch (e) {
-      setStatus('error');
-      if (e.message.includes('Network') || e.message.includes('fetch')) {
-        setMsg(`Cannot connect to FastAPI at ${getAiServerUrl()}. Check that the backend is running.`);
-      } else {
-        setMsg('Error: ' + e.message);
-      }
-    } finally {
-      setUploading(false); setProgress('');
-    }
-  }
-
-  return (
-    <View style={[styles.uploadCard, { backgroundColor: cardBg, borderColor: bdr }]}>
-      <View style={[styles.uploadHeader, { backgroundColor: C.purpleDark }]}>
-        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>📄 {mode === 'exam' ? 'Exam' : 'Regular'} Timetable Management</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9 }}>{mode === 'exam' ? 'Staff only · Excel datesheet' : 'Staff / Teacher · Text PDF'}</Text>
-      </View>
-      <View style={{ padding: 12 }}>
-        {(mode === 'exam' ? examTimetable?.meta : ttMeta) && (
-          <View style={[styles.ttInfoBox, { backgroundColor: ib, borderColor: bdr }]}>
-            <Text style={[styles.ttInfoLabel, { color: ts }]}>CURRENT TIMETABLE</Text>
-            {(mode === 'exam' ? examTimetable?.meta : ttMeta).version && (mode === 'exam' ? examTimetable?.meta : ttMeta).version !== 'pending'
-              ? <>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: tp }}>{(mode === 'exam' ? examTimetable?.meta : ttMeta).version}{(mode === 'exam' ? examTimetable?.meta : ttMeta).effectiveDate ? ` · w.e.f ${(mode === 'exam' ? examTimetable?.meta : ttMeta).effectiveDate}` : ''}</Text>
-                <Text style={{ fontSize: 10, color: ts }}>Uploaded by {(mode === 'exam' ? examTimetable?.meta : ttMeta).uploadedBy}</Text>
-              </>
-              : <Text style={{ fontSize: 11, color: ts, fontStyle: 'italic' }}>No timetable loaded yet</Text>
-            }
-          </View>
-        )}
-
-        <TouchableOpacity onPress={handleUpload} disabled={uploading}
-          style={[styles.uploadBtn, { borderColor: bdr, backgroundColor: ib }]}>
-          {uploading
-            ? <>
-              <ActivityIndicator color={C.purple} size="small" />
-              <Text style={{ fontSize: 11, color: ts, marginTop: 8, textAlign: 'center' }}>{progress}</Text>
-            </>
-            : <>
-              <Text style={{ fontSize: 22, marginBottom: 4 }}>⬆️</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: tp }}>{mode === 'exam' ? 'Upload Exam Datesheet (Excel)' : 'Upload Timetable PDF'}</Text>
-              <Text style={{ fontSize: 10, color: ts }}>{mode === 'exam' ? 'XLSX sheets · text_pdf_timetables' : 'Python layout rules · text_pdf_timetables'}</Text>
-            </>
-          }
-        </TouchableOpacity>
-
-        {status && (
-          <View style={[styles.statusBox, {
-            backgroundColor: status === 'success' ? '#DCFCE7' : '#FEE2E2',
-            borderColor: status === 'success' ? '#16A34A' : '#FCA5A5',
-          }]}>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: status === 'success' ? '#166534' : '#B91C1C', lineHeight: 18 }}>
-              {msg}
-            </Text>
-          </View>
-        )}
-
-        <View style={[styles.statusBox, { backgroundColor: '#EDE9FF', borderColor: '#9B7EF844', marginTop: 8 }]}>
-          <Text style={{ fontSize: 10, color: '#6C47D4', fontWeight: '600' }}>
-            Server URL is detected automatically from the current Expo host.
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   officeModal: { position: 'absolute', bottom: 0, left: 0, right: 0, maxHeight: '82%', borderTopWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 30 },
@@ -1091,50 +930,41 @@ const styles = StyleSheet.create({
   officeSearch: { borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, marginTop: 12, marginBottom: 8, fontSize: 13 },
   officeTeacherRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
   officeClose: { marginTop: 12, alignItems: 'center', paddingVertical: 11, borderRadius: 10 },
-  homeHeader: { margin: 14, marginBottom: 10, borderRadius: 18, padding: 16 },
+  homeHeader: { margin: 16, marginBottom: 12, borderRadius: 22, padding: 20, boxShadow: '0 8px 20px rgba(61, 43, 142, 0.14)', elevation: 4 },
   homeHeaderTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   homeHeaderTitle: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: 1.1 },
   homeHeaderSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 3, fontWeight: '600' },
   homeHeaderDate: { color: 'rgba(255,255,255,0.9)', fontSize: 11, marginTop: 14, fontWeight: '700', letterSpacing: 0.8 },
   homeHeaderTime: { color: '#fff', fontSize: 36, fontWeight: '900', letterSpacing: 0.5, marginTop: 2 },
-  modePill: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 11, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1 },
-  modeDot: { width: 8, height: 8, borderRadius: 4 },
-  modePillText: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  modeDescription: { color: 'rgba(255,255,255,0.75)', fontSize: 10, flex: 1 },
   homeHeaderStatusPill: { marginTop: 12, borderRadius: 16, paddingVertical: 10, paddingHorizontal: 14, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
   homeHeaderStatusText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  floorBar: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
+  floorBar: { paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1 },
   floorBarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  floorControls: { position: 'relative', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 6, minHeight: 28 },
-  departmentLabel: { fontSize: 12, fontWeight: '800' },
+  floorControls: { position: 'relative', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 9, minHeight: 34 },
+  departmentLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
   departmentToggleRow: { position: 'absolute', left: 0, flexDirection: 'row', gap: 6 },
   departmentChip: { minWidth: 42, alignItems: 'center', borderRadius: 14, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
   departmentChipActive: { backgroundColor: '#2563EB', borderColor: '#1D4ED8' },
   departmentChipText: { fontSize: 10, fontWeight: '800', color: '#3356A8', letterSpacing: 0.4 },
   departmentChipTextActive: { color: '#FFFFFF' },
-  mapTitle: { fontSize: 13, fontWeight: '700' },
-  floorBtns: { flexDirection: 'row', gap: 4 },
-  floorBtn: { borderRadius: 7, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#EDE9FF' },
+  mapTitle: { fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
+  floorBtns: { flexDirection: 'row', gap: 6 },
+  floorBtn: { borderRadius: 9, paddingHorizontal: 11, paddingVertical: 6, backgroundColor: '#EDE9FF' },
   floorBtnActive: { backgroundColor: C.purple },
   floorBtnText: { fontSize: 11, fontWeight: '600', color: C.purple },
   floorBtnTextActive: { color: '#fff' },
   floorBadge: { position: 'absolute', top: -4, right: -4, width: 14, height: 14, borderRadius: 7, backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  mapCard: { marginHorizontal: 14, marginTop: 10, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
-  mapHint: { textAlign: 'center', fontSize: 11, marginTop: 8, marginBottom: 6 },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 14, gap: 6, marginBottom: 12 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3, borderWidth: 1 },
+  mapCard: { marginHorizontal: 18, marginTop: 12, borderRadius: 22, borderWidth: 1, overflow: 'hidden', boxShadow: '0 6px 18px rgba(61, 43, 142, 0.10)', elevation: 3 },
+  mapHint: { textAlign: 'center', fontSize: 11, marginTop: 10, marginBottom: 8, fontWeight: '600' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 18, gap: 8, marginBottom: 16 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1 },
   legendDot: { width: 7, height: 7, borderRadius: 3.5 },
   legendText: { fontSize: 10, fontWeight: '600' },
   ttBtn: { marginHorizontal: 14, marginBottom: 12, padding: 10, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   ttBtnText: { fontSize: 12, fontWeight: '700' },
-  modeCard: { marginHorizontal: 14, marginBottom: 12, borderWidth: 1, borderRadius: 14, padding: 12 },
-  modeCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  uploadTitle: { fontSize: 13, fontWeight: '800' },
-  modeOptions: { flexDirection: 'row', gap: 8 },
-  modeOption: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 9 },
 
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },
-  popup: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 24, paddingBottom: 40 },
+  popup: { position: 'absolute', top: 60, bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, padding: 24, paddingBottom: 40 },
   handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 18, opacity: 0.4 },
   popupHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   roomBadge: { width: 50, height: 50, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
@@ -1175,10 +1005,4 @@ const styles = StyleSheet.create({
   ttRow: { flexDirection: 'row', gap: 10, marginBottom: 7, backgroundColor: '#fff', borderRadius: 10, borderWidth: 1, borderLeftWidth: 3, padding: 8 },
   ttLecBadge: { width: 36, borderRadius: 8, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', padding: 4 },
 
-  uploadCard: { marginHorizontal: 14, marginTop: 4, borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  uploadHeader: { padding: 12 },
-  ttInfoBox: { borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1 },
-  ttInfoLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 },
-  uploadBtn: { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 12, padding: 18, alignItems: 'center', marginBottom: 8 },
-  statusBox: { borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 8 },
 });

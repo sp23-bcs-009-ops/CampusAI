@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { C } from '../../constants/colors';
 import { hasStaffRole, NOTIF_TYPES, FALLBACK_LECTURE_SLOTS } from '../../constants/config';
-import { fmtDate, fmtDatetime } from '../../utils/helpers';
+import { fmtDate, fmtDatetime, toSubjectName } from '../../utils/helpers';
 
 export default function NotifCard({ notif, dark, user, onPin, onEdit, onDelete, lectureSlots }) {
   if (!notif) return null;
-
-  const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
 
   const [expanded, setExpanded] = useState(false);
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;

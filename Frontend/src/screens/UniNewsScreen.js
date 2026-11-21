@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { C } from '../constants/colors';
@@ -53,7 +53,7 @@ function EventsTab({ user, dark, isGuest }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showPost,     setShowPost]     = useState(false);
   const [editItem,     setEditItem]     = useState(null);
-  const [loadingFB,    setLoadingFB]    = useState(false);
+  const [loadingFB,    setLoadingFB]    = useState(!isGuest);
   const bg = dark ? '#0A0A1E' : '#F5F4FF';
   const ts = dark ? '#9B7EF8' : '#6C47D4';
 
@@ -159,14 +159,16 @@ function EventsTab({ user, dark, isGuest }) {
       </View>
 
       <FlatList
-        data={filtered}
+        data={loadingFB ? [] : filtered}
         keyExtractor={e => e._docId || String(e.id)}
         contentContainerStyle={{ padding: 14, paddingBottom: 32 }}
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
-            <Text style={{ fontSize: 13, color: ts }}>No events found</Text>
-          </View>
+          loadingFB
+            ? <ActivityIndicator color={C.purple} style={{ marginTop: 36 }} />
+            : <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>📭</Text>
+                <Text style={{ fontSize: 13, color: ts }}>No events found</Text>
+              </View>
         }
         renderItem={({ item: e }) => (
           <EventCard
@@ -193,10 +195,12 @@ function LostFoundTab({ user, dark, isGuest }) {
   const [typeFilter, setTypeFilter] = useState('all');
   const [catFilter,  setCatFilter]  = useState('all');
   const [showPost,   setShowPost]   = useState(false);
+  const [loading,    setLoading]    = useState(!isGuest);
   const bg = dark ? '#0A0A1E' : '#F5F4FF';
   const ts = dark ? '#9B7EF8' : '#6C47D4';
 
   async function loadLF() {
+    setLoading(true);
     try {
       const docs = await fsList('lostfound');
       // deduplicate by id field
@@ -205,6 +209,8 @@ function LostFoundTab({ user, dark, isGuest }) {
       setItems(unique);
     } catch {
       setItems(SAMPLE_LF);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -298,14 +304,16 @@ function LostFoundTab({ user, dark, isGuest }) {
       </View>
 
       <FlatList
-        data={filtered}
+        data={loading ? [] : filtered}
         keyExtractor={i => i._docId || String(i.id)}
         contentContainerStyle={{ padding: 14, paddingBottom: 32 }}
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>🔍</Text>
-            <Text style={{ fontSize: 13, color: ts }}>No items found</Text>
-          </View>
+          loading
+            ? <ActivityIndicator color={C.purple} style={{ marginTop: 36 }} />
+            : <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>🔍</Text>
+                <Text style={{ fontSize: 13, color: ts }}>No items found</Text>
+              </View>
         }
         renderItem={({ item: i }) => (
           <LFCard
