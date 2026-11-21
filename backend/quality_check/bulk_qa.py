@@ -180,6 +180,51 @@ def build_cases():
                       mentions(*teachers_of_class) if teachers_of_class else mentions("teacher")))
         cases.append(("student: tomorrow", "my classes tomorrow", student, own_day(key)))
 
+    # Signed-in teachers: "my ..." means their own teaching. One account per real teacher.
+    def about_teacher(name, *texts):
+        def check(ans, intent, text):
+            if isinstance(ans, dict) and ans.get("teacher") == name:
+                return None
+            if any(t.lower() in text.lower() for t in texts):
+                return None
+            return f"expected {name}'s own schedule"
+        return check
+
+    def says(*texts):
+        def check(ans, intent, text):
+            return None if any(t.lower() in text.lower() for t in texts) else f"expected one of {texts}"
+        return check
+
+    for i, name in enumerate(teachers):
+        teacher = {"type": "teacher", "fullName": name, "email": f"teacher.{i}@cuiatk.edu.pk"}
+        day = DAYS[i % len(DAYS)]
+        cases.append(("teacher account: my classes", f"my classes on {day.lower()}", teacher,
+                      about_teacher(name, "no classes", "you have no classes")))
+        cases.append(("teacher account: my next class", "what is my next class?", teacher,
+                      says("your next class is", "can't find an upcoming class")))
+        cases.append(("teacher account: when am I free", f"when am I free on {day.lower()}?", teacher,
+                      says(f"on {day} you're free", "free all day", "teaching in every slot")))
+        cases.append(("teacher account: class now", "do I have a class right now?", teacher,
+                      says("right now you're teaching", "you don't have a class right now")))
+    # Real profiles may carry a title the timetable doesn't ("Dr. ...", "Mr. ...").
+    for i, name in enumerate(rnd.sample(teachers, 30)):
+        titled = {"type": "teacher", "fullName": f"Dr. {name}", "email": f"titled.{i}@cuiatk.edu.pk"}
+        cases.append(("teacher account: titled name", "what is my next class?", titled,
+                      says("your next class is", "can't find an upcoming class")))
+
+    # Staff: no personal timetable; they look things up for others.
+    staff = {"type": "staff", "fullName": "QA Staff", "email": "qa.staff@cuiatk.edu.pk"}
+    cases.append(("staff account: my classes", "my classes today", staff, says("personal class timetable")))
+    cases.append(("staff account: free rooms", "free rooms now", staff, says("free", "room")))
+    cases.append(("staff account: teachers free now", "which teachers are free right now?", staff,
+                  says("free", "teacher")))
+    for i, name in enumerate(rnd.sample(teachers, 20)):
+        cases.append(("staff account: teacher free", f"is {name} free on {DAYS[i % 5].lower()}?", staff,
+                      is_type("teacher_availability", teacher=name)))
+    for key in rnd.sample(sorted(tt.TIMETABLE), 10):
+        cases.append(("staff account: class timetable", f"{key} timetable on Monday", staff,
+                      schedule_of(key)))
+
     def intent_is(*wanted):
         def check(ans, intent, text):
             return None if intent in wanted else f"intent {intent}, expected {wanted}"

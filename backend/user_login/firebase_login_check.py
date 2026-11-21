@@ -9,6 +9,7 @@ rules already allow a user to read only their own profile.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
 
@@ -49,7 +50,17 @@ def teacher_name_from_profile(profile: dict | None) -> str | None:
     for teacher in tt.ALL_TEACHERS:
         if teacher.strip().lower() == wanted:
             return teacher
-    return None
+    # Profiles often carry a title the timetable doesn't ("Dr. Asim Anwar" → "Asim Anwar").
+    # Compare without titles and punctuation; only a single exact match counts, never a guess.
+    def bare(name: str) -> str:
+        words = re.findall(r"[a-z]+", name.lower())
+        return " ".join(w for w in words if w not in _NAME_TITLES)
+
+    matches = [teacher for teacher in tt.ALL_TEACHERS if bare(teacher) and bare(teacher) == bare(wanted)]
+    return matches[0] if len(matches) == 1 else None
+
+
+_NAME_TITLES = {"dr", "mr", "mrs", "ms", "miss", "prof", "professor", "sir", "madam", "maam", "engr"}
 
 
 def resolve_identity(id_token: str | None) -> dict | None:

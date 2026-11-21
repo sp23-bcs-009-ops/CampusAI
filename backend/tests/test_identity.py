@@ -385,3 +385,11 @@ def test_student_notices_stay_short_and_guest_announcements_stay_detailed(monkey
     assert "Short circuit in Lab CS3 (critical)" in guest["answer"]
     assert "Leave the lab." in guest["answer"]
     assert "body:" not in guest["answer"].lower()
+
+
+def test_teacher_profile_with_a_title_still_finds_the_timetable_name():
+    from user_login.firebase_login_check import teacher_name_from_profile
+
+    for written in ("Dr. Kamran Ali", "dr kamran ali", "Mr. Kamran Ali", "Kamran Ali"):
+        assert teacher_name_from_profile({"type": "teacher", "fullName": written}) == "Mr. Kamran Ali", written
+    assert teacher_name_from_profile({"type": "teacher", "fullName": "Dr. Nobody Here"}) is None
