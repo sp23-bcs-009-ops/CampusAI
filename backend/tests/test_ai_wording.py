@@ -109,3 +109,35 @@ def test_which_of_those_is_answered_from_the_last_answer(monkeypatch):
     result = answer_question("which of those classes are labs?", session_id=session)
     assert result["intent"] == "followup"
     assert "Test Subject" in calls[0]
+
+
+def test_free_busy_answers_read_as_sentences_with_free_time_first():
+    from chatbot.answer_formatter import card_to_text
+
+    card = {"type": "teacher_availability", "teacher": "Shahzad Rizwan", "days": [{
+        "day": "Monday",
+        "free": ["11:30-13:15", "13:35-15:00", "15:00-16:30"],
+        "busy": [{"slot": "08:30-10:00", "classes": ["BS(AI)-III"], "rooms": ["LT2"], "subjects": ["Database Systems"]}],
+    }]}
+    assert card_to_text(card) == (
+        "👨‍🏫 Shahzad Rizwan is free on Monday 11:30–16:30.\n"
+        "Teaching on Monday:\n"
+        "• 08:30–10:00 Database Systems (BS(AI)-III, LT2)"
+    )
+
+
+def test_relaxed_check_allows_any_wording_but_never_busy_called_free():
+    facts = ("👨‍🏫 Shahzad Rizwan is free on Monday 11:30–15:00.\nTeaching on Monday:\n"
+             "• 08:30–10:00 Database Systems (BS(AI)-III, LT2)\n• 15:00–16:30 Networks (BS(SE)-III, LT4)")
+    # Busy times described without the word "busy" are fine now.
+    assert unsupported_details("He's free 11:30–15:00. Mornings he has Database Systems 08:30–10:00.", facts) == []
+    # A free stretch may end exactly when a class starts.
+    assert unsupported_details("You can meet him between 11:30 and 15:00; he is free 11:30–15:00.", facts) == []
+    # Calling a busy slot free is still rejected.
+    assert unsupported_details("He is free 08:30–10:00 and 11:30–15:00.", facts)
+
+
+def test_invented_job_titles_are_rejected():
+    assert unsupported_details("Shahzad Rizwan is a lecturer who teaches Networks.", "Shahzad Rizwan teaches Networks.")
+    assert unsupported_details("He is the HOD.", "He teaches Networks.")
+    assert unsupported_details("Dr. Muazzam Maqsood is the HOD.", "Dr. Muazzam Maqsood (HOD)") == []

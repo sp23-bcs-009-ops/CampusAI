@@ -136,11 +136,18 @@ def _run_facts_chain(question: str, facts: str, memory: SessionMemory) -> str:
 
 def _ai_words_for_facts(question: str, facts: str, memory: SessionMemory, reserve: int) -> str | None:
     """The AI's friendly wording of the facts, or None when it's unavailable or adds anything new."""
-    if not facts.strip() or len(facts) > _MAX_FACTS_FOR_AI or not _ai_budget_left(reserve):
+    if not facts.strip():
+        return None
+    if len(facts) > _MAX_FACTS_FOR_AI:
+        print(f"[AI] wording skipped: facts too long ({len(facts)} characters), using plain facts")
+        return None
+    if not _ai_budget_left(reserve):
+        print("[AI] wording skipped: AI calls per minute used up, using plain facts")
         return None
     try:
         reply = str(_run_facts_chain(question, facts, memory) or "").strip()
-    except Exception:
+    except Exception as exc:
+        print(f"[AI] wording failed ({type(exc).__name__}), using plain facts")
         return None
     problems = unsupported_details(reply, facts, question) if reply else ["empty reply"]
     if problems:

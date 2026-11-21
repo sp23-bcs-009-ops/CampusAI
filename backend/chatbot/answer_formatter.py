@@ -117,22 +117,66 @@ def _schedule_lines(title: str, rows: list[dict], include_class: bool = False) -
     return lines
 
 
-def _availability_lines(name: str, days: list[dict], who_key: str) -> list[str]:
-    lines = [name]
+def _minutes(text: str) -> int | None:
+    match = re.match(r"^\s*(\d{1,2})[:.](\d{2})", str(text or ""))
+    return int(match.group(1)) * 60 + int(match.group(2)) if match else None
+
+
+def _clock(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _merged_free(slots: list) -> list[str]:
+    """Back-to-back free slots read as one stretch: 11:30–13:15, 13:35–15:00, 15:00–16:30 → 11:30–16:30.
+    Gaps of up to 25 minutes (the lunch break) join; a real class in between does not."""
+    spans = []
+    for slot in slots or []:
+        parts = re.split(r"\s*[-–]\s*", _time(slot).replace("–", "-"))
+        start, end = (_minutes(parts[0]), _minutes(parts[1])) if len(parts) == 2 else (None, None)
+        if start is not None and end is not None:
+            spans.append([start, end])
+    spans.sort()
+    merged: list[list[int]] = []
+    for start, end in spans:
+        if merged and start - merged[-1][1] <= 25:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return [f"{_clock(a)}–{_clock(b)}" for a, b in merged]
+
+
+def _and(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" and {items[-1]}"
+
+
+def _availability_lines(who: str, days: list[dict], who_key: str, busy_word: str) -> list[str]:
+    """Free/busy in plain sentences, free time first: what people usually ask.
+
+        Shahzad Rizwan is free on Monday 11:30–16:30.
+        Teaching on Monday:
+        • 08:30–10:00 Database Systems (BS(AI)-III, LT2)
+    """
+    lines = []
     for day in days or []:
-        if len(days) > 1:
-            lines.append("")
-        lines.append(str(day.get("day") or ""))
-        free = [_time(slot) for slot in day.get("free") or []]
-        lines.append("Free: " + (", ".join(free) if free else "no free slots"))
+        name = str(day.get("day") or "")
+        free = _merged_free(day.get("free") or [])
         busy = []
         for block in day.get("busy") or []:
-            parts = [_join(block.get("classes")), _join(block.get(who_key)), _join(block.get("subjects"))]
-            detail = ", ".join(p for p in parts if p)
-            busy.append(_time(block.get("slot")) + (f" ({detail})" if detail else ""))
+            subject = _join(block.get("subjects"))
+            detail = ", ".join(p for p in (_join(block.get("classes")), _join(block.get(who_key))) if p)
+            busy.append(f"• {_time(block.get('slot'))} {subject or 'class'}" + (f" ({detail})" if detail else ""))
+        if len(days) > 1 and lines:
+            lines.append("")
+        if free and not busy:
+            lines.append(f"{who} is free all day on {name} (no classes).")
+        elif free:
+            lines.append(f"{who} is free on {name} {_and(free)}.")
+        else:
+            lines.append(f"{who} has no free time on {name}.")
         if busy:
-            lines.append("Busy: " + "; ".join(busy))
-    return lines
+            lines.append(f"{busy_word} on {name}:")
+            lines.extend(busy)
+    return lines or [f"{who} has nothing in the timetable for that day."]
 
 
 def _next_line(prefix: str, info: dict | None) -> str:
@@ -174,10 +218,10 @@ def card_to_text(card: dict) -> str:
         lines = _schedule_lines(f"📍 {card.get('class')} — rooms", card.get("rooms") or [])
 
     elif kind == "teacher_availability":
-        lines = _availability_lines(f"👨‍🏫 {card.get('teacher')}", card.get("days") or [], "rooms")
+        lines = _availability_lines(f"👨‍🏫 {card.get('teacher')}", card.get("days") or [], "rooms", "Teaching")
 
     elif kind == "room_availability":
-        lines = _availability_lines(f"📍 Room {card.get('room')}", card.get("days") or [], "teachers")
+        lines = _availability_lines(f"📍 {card.get('room')}", card.get("days") or [], "teachers", "In use")
 
     elif kind == "rooms_free":
         rooms = card.get("rooms") or []

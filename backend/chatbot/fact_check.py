@@ -14,9 +14,14 @@ from timetable import timetable_lookup as tt
 from timetable.class_name_normalizer import normalize_to_key
 
 _TIME = re.compile(r"\b(\d{1,2})[:.](\d{2})\b")
+_RANGE_START = re.compile(r"\b(\d{1,2})[:.](\d{2})\s*(?:[-–—]|to)\s*\d{1,2}[:.]\d{2}\b")
 _NUMBER = re.compile(r"(?<![\w:.])(\d+)(?![\w:])")
 _CLASS_KEY = re.compile(r"\b[A-Z]{2,3}\([A-Z&]+\)-[IVX]+\b")
 _SHORT_CLASS = re.compile(r"\b(B[A-Z]{1,4})[\s-]?(\d)\b")
+_TITLES = re.compile(
+    r"\b(lecturer|professor|hod|head of (?:the )?department|dean|chairman|chairperson|coordinator|phd|"
+    r"rector|registrar|director)\b"
+)
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
@@ -79,12 +84,22 @@ def unsupported_details(reply: str, facts: str, question: str = "") -> list[str]
 
     problems += [d for d in _DAYS if re.search(rf"\b{d}\b", reply_lower) and d not in lower_allowed]
 
-    # A busy time must not be passed off as free: if the reply names one, it must say it's busy.
-    busy_times = set()
+    # Job titles are facts too: "Shahzad Rizwan is a lecturer" needs "lecturer" in the facts.
+    problems += [t for t in _TITLES.findall(reply_lower) if t not in lower_allowed]
+
+    # A busy time must never be called free. Mentioning it in any other wording is fine
+    # ("Database Systems 08:30–10:00"); only a sentence that calls a busy time free is rejected.
+    # Compared by the START of each time range: a free stretch may end exactly when a class starts.
+    busy_starts = set()
     for line in facts.splitlines():
-        if line.strip().lower().startswith("busy:"):
-            busy_times |= _times(line)
-    busy_words = r"\b(busy|teach\w*|class(es)?|booked|occupied|not free|tied up|lectures?|labs?|sessions?|engaged)\b"
-    if busy_times & _times(reply) and not re.search(busy_words, reply_lower):
-        problems.append("busy time shown without saying busy")
+        stripped = line.strip().lower()
+        if stripped.startswith(("busy:", "•")):
+            busy_starts |= {f"{int(h)}:{m}" for h, m in _RANGE_START.findall(line)}
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", reply):
+        lower = sentence.lower()
+        starts = {f"{int(h)}:{m}" for h, m in _RANGE_START.findall(sentence)}
+        if busy_starts & starts and re.search(r"\b(free|available|empty|vacant|open)\b", lower) \
+                and not re.search(r"\b(busy|teach\w*|class(es)?|booked|occupied|in use|lectures?|not free)\b", lower):
+            problems.append("a busy time was called free")
+            break
     return problems
