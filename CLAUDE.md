@@ -59,7 +59,7 @@ One-click launchers `START_CAMPUS_AI.bat` / `.sh` start the backend in Docker an
 Backend modules live in folders and are imported from `backend/` as the root (no `backend.` prefix), usually with their old short name as an alias (e.g. `from timetable import timetable_lookup as tt`):
 
 - `api_server.py` — FastAPI app
-- `chatbot/` — `answer_pipeline.py`, `answer_formatter.py`, `off_topic_guard.py`, `campus_question_check.py`, `count_and_list_answers.py`, `saved_user_preferences.py`
+- `chatbot/` — `answer_pipeline.py` (entry + AI chains), `ai_prompts.py`, `question_router.py`, `question_checks.py`, `chat_memory.py`, `fixed_replies.py`, `timetable_answers.py`, `record_answers.py`, `exam_answers.py`, `student_answers.py`, `teacher_answers.py`, `greetings_and_help.py`, `answer_formatter.py` (everything leaves as plain text), `question_understanding.py` (AI says what is asked as JSON; code checks every name and builds a standard question), `fact_check.py` (rejects AI wording that adds details not in the facts), `off_topic_guard.py`, `campus_question_check.py`, `count_and_list_answers.py`
 - `timetable/` — `timetable_lookup.py`, `class_name_normalizer.py`
 - `data_sources/` — `firebase_reader.py`, `website_knowledge_reader.py`, `website_knowledge/` (the knowledge pack JSON)
 - `user_login/firebase_login_check.py`

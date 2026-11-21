@@ -84,6 +84,8 @@ def _resolve_uncached(token: str) -> dict | None:
     profile = _read_own_profile(token, email)
     if not isinstance(profile, dict):
         return {"email": email, "verified": True}
+    if profile.get("type") not in {"student", "teacher", "staff"}:
+        print(f"[AUTH] profile has no student/teacher/staff type; fields: {sorted(profile)}")
     profile["email"] = email
     profile["verified"] = True
     return profile
@@ -144,8 +146,11 @@ def _read_own_profile(token: str, email: str) -> dict | None:
             headers={"Authorization": f"Bearer {token}"},
         )
     except university_data.UniversityDataUnavailable:
+        print("[AUTH] profile read failed: Firestore unavailable")
         return None
     if status != 200:
+        # Status only: no email, token or profile values in the log.
+        print(f"[AUTH] profile read refused or missing: HTTP {status}")
         return None
     try:
         payload = json.loads(raw.decode())
