@@ -206,6 +206,21 @@ def build_cases():
     for intents, questions in fixed.items():
         for q in questions:
             cases.append((f"fixed: {intents[0]}", q, None, intent_is(*intents)))
+
+    # Guests (gate on): campus data asks them to sign in; university info, greetings and refusals still work.
+    guest_data = [f"who is {t}" for t in rnd.sample(teachers, 15)]
+    guest_data += [f"{k} timetable on Monday" for k in rnd.sample(sorted(tt.TIMETABLE), 10)]
+    guest_data += [f"is {r} free right now?" for r in ["LT4", "CR 2", "Lab3"]]
+    guest_data += fixed[("events",)][:4] + fixed[("lostfound",)][:4] + fixed[("exams",)][:2]
+    guest_data += ["what are my classes today?", "who am i?", "who teaches data structures?"]
+    for q in guest_data:
+        cases.append(("guest: sign in for data", q, None, intent_is("sign_in_required")))
+    for q in fixed[("comsats_info",)]:
+        cases.append(("guest: university info", q, None, intent_is("comsats_info")))
+    for q in ["hi", "thanks", "what can you do?"]:
+        cases.append(("guest: greetings", q, None, intent_is("general")))
+    for q in fixed[("off_topic",)][:5]:
+        cases.append(("guest: off-topic", q, None, intent_is("off_topic")))
     return cases
 
 
@@ -219,6 +234,8 @@ def main():
     started = time.time()
     for n, (category, question, identity, check) in enumerate(cases):
         session = f"bulk-{n}"
+        # Guest cases test the guest gate; all others test the answer logic itself.
+        pipeline.settings.guest_university_info_only = category.startswith("guest:")
         try:
             result = pipeline.answer_question(question, session_id=session, identity=identity)
             answer, intent = result["answer"], result["intent"]

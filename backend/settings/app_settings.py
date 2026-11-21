@@ -52,6 +52,9 @@ class Settings:
     # AI calls allowed per minute by the provider (Cerebras key: 5). Rewording data answers
     # only uses spare calls, so greetings and website questions keep working.
     ai_calls_per_minute: int = int(_env("AI_CALLS_PER_MINUTE", "5"))
+    # Guests (no verified university sign-in) only get university information;
+    # timetables, teachers, rooms, events, notices and lost & found need a sign-in.
+    guest_university_info_only: bool = _env("GUEST_UNIVERSITY_INFO_ONLY", "true").lower() != "false"
 
     # Comma-separated allowed origins. "*" (default) = open, for dev.
     # For production set e.g.  CORS_ORIGINS=https://myapp.com,https://admin.myapp.com

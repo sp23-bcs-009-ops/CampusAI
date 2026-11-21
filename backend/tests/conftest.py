@@ -109,4 +109,6 @@ def _offline_timetable(request, monkeypatch):
     monkeypatch.setattr(answer_pipeline, "_run_facts_chain", _model_unavailable)
     # Phase 7: the AI reads each question first. Off in tests, so the rules answer; a test can fake it.
     monkeypatch.setattr(answer_pipeline, "_run_understanding_chain", _model_unavailable)
+    # Most tests check the answer logic itself, so the guest gate is off; test_guest_access.py turns it on.
+    monkeypatch.setattr(answer_pipeline.settings, "guest_university_info_only", False)
     answer_pipeline._AI_CALLS.clear()

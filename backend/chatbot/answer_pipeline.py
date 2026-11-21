@@ -51,7 +51,10 @@ from settings.app_settings import settings
 from settings.llm_provider import get_chat_model
 from timetable import timetable_lookup as tt
 
-from chatbot.fixed_replies import CLARIFY, INTRO, NOT_IN_RECORDS, PRIVATE_RECORDS, REFUSAL, _UNRELATED_NOTE
+from chatbot.fixed_replies import (
+    CLARIFY, GUEST_SIGN_IN, INTRO, NOT_IN_RECORDS, PRIVATE_RECORDS, REFUSAL, _UNRELATED_NOTE,
+)
+from langchain_core.messages import AIMessage
 from chatbot.chat_memory import get_session, SessionMemory
 from chatbot.question_checks import (
     _class_key_from_text,
@@ -148,7 +151,12 @@ def _ai_words_for_facts(question: str, facts: str, memory: SessionMemory, reserv
 
 def _run_general_chain(question: str, memory: SessionMemory) -> str:
     now = tt.campus_now().strftime("%A, %d %B %Y, %I:%M %p")
-    return _run_chain(GENERAL_PROMPT, f"(Current campus date and time: {now})\n{question}", memory)
+    guest = (
+        "(The user is a guest: only university information is available to them. For timetables, "
+        "teachers, rooms, events, notices or lost & found, tell them to sign in.)\n"
+        if memory.is_guest else ""
+    )
+    return _run_chain(GENERAL_PROMPT, f"(Current campus date and time: {now})\n{guest}{question}", memory)
 
 
 def _ai_reply(question: str, memory: SessionMemory, fallback: str) -> str:
@@ -289,6 +297,8 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
     facts don't have, and then the plain fact text is sent instead.
     """
     memory = get_session(session_id)
+    if identity is None and settings.guest_university_info_only:
+        return _guest_answer(question, session_id, memory)
     followup = _followup_from_last_facts(question, memory)
     if followup is not None:
         memory.add_turn(question, followup)
@@ -296,6 +306,45 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
     understood = _understood_answer(question, session_id, identity, memory)
     result = understood if understood is not None else _answer_from_code(question, session_id, identity)
     return _with_ai_wording(question, result, memory)
+
+
+# What a guest (no verified university sign-in) may get: university information, greetings and
+# help, and the polite off-topic refusal. Everything else asks them to sign in.
+_GUEST_INTENTS = {"comsats_info", "general", "off_topic"}
+_GUEST_AI_INTENTS = {"campus_info", "chat", "off_topic"}
+
+
+def _guest_answer(question: str, session_id: str, memory: SessionMemory) -> Dict[str, Any]:
+    """The guest gate: one place that decides what a guest may see.
+
+    The AI's reading of the question is used first, so data questions are refused before any
+    Firestore read. Whatever answers, the final intent is checked again, so nothing else
+    reaches a guest even when the AI is unavailable.
+    """
+    memory.is_guest = True
+    if personal_reply(question, None) is not None:
+        # "my classes", "who am I": personal data always needs a sign-in.
+        memory.add_turn(question, GUEST_SIGN_IN)
+        return {"answer": GUEST_SIGN_IN, "intent": "sign_in_required"}
+    if not _needs_no_understanding(question) and _ai_budget_left():
+        try:
+            understood = parse_understanding(_run_understanding_chain(
+                f"Today: {tt.campus_now().strftime('%A, %d %B %Y')}. The user is a guest.\n"
+                f"Previous: teacher=; class=; room=\nMessage: {question}"
+            ))
+        except Exception:
+            understood = None
+        if understood and understood["intent"] not in _GUEST_AI_INTENTS:
+            memory.add_turn(question, GUEST_SIGN_IN)
+            return {"answer": GUEST_SIGN_IN, "intent": "sign_in_required"}
+    result = _answer_from_code(question, session_id, None)
+    if result.get("intent") in _GUEST_INTENTS:
+        return result
+    # Data was found for a guest: replace it, and keep it out of the chat memory too.
+    if memory.messages and isinstance(memory.messages[-1], AIMessage):
+        memory.messages[-1] = AIMessage(content=GUEST_SIGN_IN)
+    memory.last_facts = ""
+    return {"answer": GUEST_SIGN_IN, "intent": "sign_in_required"}
 
 
 def _run_understanding_chain(message: str) -> str:

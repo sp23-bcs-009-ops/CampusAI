@@ -36,13 +36,10 @@ _HELP_BY_ROLE = {
         "• Announcements, events, lost & found and COMSATS information"
     ),
     None: (
-        "Here's what I can do:\n"
-        "• Class timetables: \"BCS-1 Monday\"\n"
-        "• Teachers: \"is Aamir Ali free today?\"\n"
-        "• Rooms: \"free rooms at 10am Wednesday\"\n"
-        "• Events, announcements, lost & found\n"
-        "• COMSATS information: admissions, departments, programs\n"
-        "Sign in with your university account to get your own timetable."
+        "Here's what I can do for guests:\n"
+        "• University information: admissions, departments, programs, fees, campus facilities\n"
+        "Sign in with your university account for full access to timetables, teachers, rooms, "
+        "events, notices and lost & found."
     ),
 }
 

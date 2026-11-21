@@ -17,6 +17,11 @@ INTRO = (
     "timetables, teachers, rooms, events, announcements, and official campus information."
 )
 
+GUEST_SIGN_IN = (
+    "Please sign in with your university account for full access to timetables, teachers, rooms, "
+    "events, notices and lost & found. As a guest, I can help with university information such as "
+    "admissions, departments, programs, fees and campus facilities."
+)
 CLARIFY = (
     "I'm not sure I understood that. I can help with COMSATS Attock campus questions, "
     "for example \"BCS-1 timetable on Monday\", \"Is LT 4 free now?\", "
