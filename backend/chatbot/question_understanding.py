@@ -19,9 +19,6 @@ from timetable.class_name_normalizer import extract_class_from_sentence
 
 DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
-# What the student is told directly, without any lookup.
-DIRECT_INTENTS = {"off_topic", "chat", "campus_info", "private_record", "followup", "exams"}
-
 
 def parse_understanding(reply: str) -> dict | None:
     """The first JSON object in the AI's reply, or None."""

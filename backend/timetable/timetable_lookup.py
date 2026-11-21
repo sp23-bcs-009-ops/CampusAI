@@ -10,8 +10,7 @@ import re
 
 from rapidfuzz import fuzz, process
 
-from timetable.class_name_normalizer import extract_class_from_sentence, normalize_to_key
-from chatbot.campus_question_check import is_comsats_question
+from timetable.class_name_normalizer import extract_class_from_sentence
 
 # Indexes are filled by ensure_timetable() from Firestore.
 TIMETABLE = {}
@@ -109,13 +108,6 @@ WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
 def _words(text: str):
     return re.findall(r"[a-z0-9]+", (text or "").lower())
-
-def _has_word(text: str, *needles: str) -> bool:
-    word_set = set(_words(text))
-    return any(n.lower() in word_set for n in needles)
-
-def _has_phrase(text: str, phrase: str) -> bool:
-    return phrase.lower() in (text or "").lower()
 
 def _slot_start_minutes(slot: str) -> int:
     return _time_to_minutes((slot or "").split("-", 1)[0])

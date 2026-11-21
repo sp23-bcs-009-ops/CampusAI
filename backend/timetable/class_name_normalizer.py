@@ -25,7 +25,6 @@ DIGIT_TO_ROMAN = {
     '1': 'I',   '2': 'II',  '3': 'III', '4': 'IV',
     '5': 'V',   '6': 'VI',  '7': 'VII', '8': 'VIII',
 }
-ROMAN_TO_DIGIT = {v: k for k, v in DIGIT_TO_ROMAN.items()}
 
 # ──────────────────────────────────────────────
 # 2. All known aliases → canonical program code
@@ -97,11 +96,6 @@ PROGRAM_ALIASES = {
 
     # BA(BA) – Arts
     'BABA':              'BA',         # fallback; will produce BS(BA)
-}
-
-# Programs that are NOT wrapped in BS(…) — special top-level keys
-SPECIAL_KEYS = {
-    'BA': 'BA(BA)',    # only one BA class: BA(BA)-VII
 }
 
 # Noise words to strip before parsing
