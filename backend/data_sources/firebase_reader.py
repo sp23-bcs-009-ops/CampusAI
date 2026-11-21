@@ -49,6 +49,8 @@ _active_mode = "regular"
 _CACHE_TTL_SECONDS = 300.0
 _RECORD_CACHE: dict[tuple, tuple[float, list]] = {}
 _RECORD_TTL_SECONDS = 300.0
+# Emergency announcements are urgent, so they are re-read sooner than events or lost & found.
+_RECORD_TTL_BY_KIND = {"announcements": 30.0}
 NOTIF_DEPTS = ("ai", "a_f", "ba", "bda", "ce", "cs", "ee", "english", "math", "se")
 
 
@@ -410,7 +412,7 @@ def firebase_records(
     key = (kind, dept, semester)
     cached = _RECORD_CACHE.get(key)
     now = time.time()
-    if cached and (now - cached[0]) < _RECORD_TTL_SECONDS:
+    if cached and (now - cached[0]) < _RECORD_TTL_BY_KIND.get(kind, _RECORD_TTL_SECONDS):
         return cached[1]
     records = _firebase_records(kind, dept, semester)
     _RECORD_CACHE[key] = (time.time(), records)

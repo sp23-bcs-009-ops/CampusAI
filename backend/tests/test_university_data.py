@@ -163,3 +163,29 @@ def test_empty_notification_read_is_not_repeated(monkeypatch):
     assert first == []
     assert second == []
     assert calls == ["notifications/cs/semesters/1/posts"]
+
+
+def test_record_cache_reads_firestore_once_and_announcements_refresh_sooner(monkeypatch):
+    """Caching only reads (never writes or deletes); emergency announcements expire after 30 seconds."""
+    from data_sources import firebase_reader as fr
+
+    reads = []
+    monkeypatch.setattr(fr, "_firebase_records", lambda kind, dept=None, semester=None: reads.append(kind) or [{"title": kind}])
+    clock = [1000.0]
+    monkeypatch.setattr(fr.time, "time", lambda: clock[0])
+    fr._RECORD_CACHE.clear()
+
+    fr.firebase_records("events")
+    fr.firebase_records("events")
+    fr.firebase_records("announcements")
+    assert reads == ["events", "announcements"]  # second events question used the copy
+
+    clock[0] += 31  # announcements are stale after 30 s, events (5 min) are not
+    fr.firebase_records("events")
+    fr.firebase_records("announcements")
+    assert reads == ["events", "announcements", "announcements"]
+
+    clock[0] += 300
+    fr.firebase_records("events")
+    assert reads[-1] == "events"
+    fr._RECORD_CACHE.clear()
