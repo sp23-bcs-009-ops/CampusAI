@@ -1,6 +1,6 @@
 import pytest
 
-from backend import timetable_upload
+from timetable_upload import timetable_publisher as timetable_upload
 
 
 class FakeProfileSnapshot:

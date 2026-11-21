@@ -4,8 +4,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from catalog import catalog_from_timetable, detect_catalog_op
-from pipeline import answer_question, get_session
+from chatbot.count_and_list_answers import catalog_from_timetable, detect_catalog_op
+from chatbot.answer_pipeline import answer_question, get_session
 
 
 def test_unique_subjects_are_not_meetings_or_sections():
@@ -119,5 +119,5 @@ def test_department_counts_and_subject_teachers():
     )
     assert "CS:" in counts["answer"]
     assert "SE:" in counts["answer"]
-    assert "Test Subject is listed with Dr. Test" in taught["answer"]
-    assert "complete teaching-load" in taught["answer"].lower()
+    assert "Test Subject is taught by Dr. Test" in taught["answer"]
+    assert "teaching-load" not in taught["answer"].lower()  # no robotic caveat

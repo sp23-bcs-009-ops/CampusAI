@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 
 import pymupdf
 import pytest
 
-from backend import rule_based_text_pdf as local
-from backend.text_pdf_layout import TextPdfValidationError
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload import pdf_cell_rules as local
+from timetable_upload.pdf_layout_reader import TextPdfValidationError
 
 
 def _token(text, x, y, *, bold=False):
@@ -107,7 +111,7 @@ def test_teacher_missing_from_list_is_kept_from_pdf_and_converter_succeeds(tmp_p
 
 
 def test_unparseable_cell_is_pending_edit_without_invalidating_timetable():
-    source_pdf = Path(__file__).parents[1] / "timetable.pdf"
+    source_pdf = Path(__file__).parent / "fixtures" / "timetable.pdf"
 
     timetable, documents, warnings, _ = local.process_rule_based_pdf(str(source_pdf))
 

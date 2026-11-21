@@ -4,15 +4,9 @@ Live university answers always come from Firestore. This fixture exists so
 unit tests do not hit the network and cannot become a production fallback.
 """
 import os
-import tempfile
 
 import pytest
 
-os.environ.setdefault("KNOWLEDGE_MAX_AGE_DAYS", "0")
-os.environ.setdefault(
-    "CHROMA_DIR",
-    tempfile.mkdtemp(prefix="campusai-test-chroma-"),
-)
 os.environ.setdefault("CAMPUS_AI_API_KEY", "")
 
 TEST_TIMETABLE = {
@@ -95,10 +89,26 @@ def _offline_timetable(request, monkeypatch):
     if request.node.name == "test_firebase_failure_does_not_read_local_json":
         return
 
-    import timetable_service as tt
-    import university_data
+    from timetable import timetable_lookup as tt
+    from data_sources import firebase_reader as university_data
 
     monkeypatch.setattr(university_data, "load_timetable", lambda: TEST_TIMETABLE)
     monkeypatch.setattr(university_data, "schedule_mode", lambda: "regular")
     monkeypatch.setattr(university_data, "active_mode", lambda: "regular")
     tt._rebuild_indexes(TEST_TIMETABLE)
+
+    # Chat and unclear questions go to the model. Tests run it "unavailable" so the
+    # fixed fallback text answers; a test can patch _run_general_chain to fake a reply.
+    from chatbot import answer_pipeline
+
+    def _model_unavailable(*_args, **_kwargs):
+        raise RuntimeError("model disabled in tests")
+
+    monkeypatch.setattr(answer_pipeline, "_run_general_chain", _model_unavailable)
+    # Data answers are reworded by the model too; tests see the plain facts unless they fake a reply.
+    monkeypatch.setattr(answer_pipeline, "_run_facts_chain", _model_unavailable)
+    # Phase 7: the AI reads each question first. Off in tests, so the rules answer; a test can fake it.
+    monkeypatch.setattr(answer_pipeline, "_run_understanding_chain", _model_unavailable)
+    # Most tests check the answer logic itself, so the guest gate is off; test_guest_access.py turns it on.
+    monkeypatch.setattr(answer_pipeline.settings, "guest_university_info_only", False)
+    answer_pipeline._AI_CALLS.clear()

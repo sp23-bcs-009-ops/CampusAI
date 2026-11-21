@@ -20,7 +20,11 @@ except ImportError:
     sys.modules["firebase_admin.credentials"] = firebase_admin.credentials
     sys.modules["firebase_admin.firestore"] = firebase_admin.firestore
 
-from backend.timetable_upload import (
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from timetable_upload.timetable_publisher import (
     convert_ocr_to_documents,
     ocr_checkpoint_page_is_reusable,
     ocr_page_has_structured_schema,

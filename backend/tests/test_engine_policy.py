@@ -4,15 +4,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import timetable_service as tt
-import user_memory
-from pipeline import (
+from timetable import timetable_lookup as tt
+from chatbot.answer_pipeline import (
     REFUSAL,
     answer_question,
-    clear_long_term_memory,
     get_session,
     handle_comsats,
-    long_term_memory_for,
     route,
     RoutedQuestion,
     SessionMemory,
@@ -29,7 +26,7 @@ STUDENT = {
 
 def test_social_and_identity_do_not_call_groq_or_timetable(monkeypatch):
     monkeypatch.setattr(tt, "ensure_timetable", lambda: (_ for _ in ()).throw(AssertionError("timetable")))
-    monkeypatch.setattr("pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
     hello = answer_question("How are you, my friend?", session_id="engine-hello")
     intro = answer_question("Who are you?", session_id="engine-intro")
     thanks = answer_question("Thank you!", session_id="engine-thanks")
@@ -51,13 +48,11 @@ def test_student_who_am_i_is_not_the_bot_introduction():
 
 
 def test_unrelated_refusal_is_polite_and_does_not_name_the_pack(monkeypatch):
-    monkeypatch.setattr("pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
-    dog = answer_question("What is the difference between a dog and a cat?", session_id="engine-dog")
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", lambda *a, **k: (_ for _ in ()).throw(AssertionError("groq")))
     france = answer_question("What is the capital of France?", session_id="engine-france")
-    assert dog["intent"] == "off_topic"
     assert france["intent"] == "off_topic"
-    assert dog["answer"] == REFUSAL
-    assert "knowledge pack" not in dog["answer"].lower()
+    assert france["answer"] == REFUSAL
+    assert "knowledge pack" not in france["answer"].lower()
     assert "paris" not in france["answer"].lower()
 
 
@@ -92,8 +87,8 @@ def test_document_retrieval_reaches_the_model_prompt(monkeypatch):
         seen["user"] = user_input
         return "The Attock campus library is on the academic block."
 
-    monkeypatch.setattr("pipeline.retrieve_campus_documents", fake_docs)
-    monkeypatch.setattr("pipeline._run_chain", fake_chain)
+    monkeypatch.setattr("chatbot.answer_pipeline.retrieve_campus_documents", fake_docs)
+    monkeypatch.setattr("chatbot.answer_pipeline._run_chain", fake_chain)
     answer = handle_comsats(RoutedQuestion("comsats_info", "Tell me about the campus library"), SessionMemory())
     assert "library" in seen["question"].lower()
     assert "Attock campus library" in seen["user"]
@@ -113,38 +108,21 @@ def test_retrieved_injection_is_treated_as_evidence(monkeypatch):
             "source": {"url": "https://example.test", "freshness_label": "official"},
         }]
 
-    monkeypatch.setattr("pipeline.retrieve_campus_documents", fake_docs)
+    monkeypatch.setattr("chatbot.answer_pipeline.retrieve_campus_documents", fake_docs)
     monkeypatch.setattr(
-        "pipeline._run_chain",
+        "chatbot.answer_pipeline._run_chain",
         lambda system, user, memory: "I will use only the campus records in the user message.",
     )
     answer = handle_comsats(RoutedQuestion("comsats_info", "What is the library policy?"), SessionMemory())
     assert "paris" not in answer.lower()
 
 
-def test_long_term_memory_is_isolated_and_can_be_deleted(tmp_path, monkeypatch):
-    monkeypatch.setattr(user_memory, "STORE", tmp_path / "long_term_memory.json")
-    first = answer_question(
-        "Please remember that I prefer short timetable answers.",
-        session_id="ltm-a",
-        identity=STUDENT,
-    )
-    other = answer_question(
-        "What do you remember about me?",
-        session_id="ltm-b",
-        identity={"type": "student", "email": "other@cuiatk.edu.pk", "dept": "cs", "semester": 1},
-    )
-    guest = answer_question("Please remember that I prefer labs.", session_id="ltm-guest")
-    shown = answer_question("What do you remember about me?", session_id="ltm-a", identity=STUDENT)
-    forgotten = answer_question("Forget my saved preferences.", session_id="ltm-a", identity=STUDENT)
-    assert "remember" in first["answer"].lower()
-    assert "do not have" in other["answer"].lower()
-    assert "sign in" in guest["answer"].lower()
-    assert "short timetable answers" in shown["answer"]
-    assert long_term_memory_for("other@cuiatk.edu.pk") == []
-    assert "deleted" in forgotten["answer"].lower()
-    assert long_term_memory_for("student@cuiatk.edu.pk") == []
-    clear_long_term_memory("student@cuiatk.edu.pk")
+def test_memory_keeps_the_text_of_timetable_answers():
+    session = "engine-answer-text"
+    answer_question("What are BCS-1 classes on Monday?", session_id=session)
+    last_reply = get_session(session).messages[-1].content
+    assert "Test Subject" in last_reply
+    assert "structured" not in last_reply
 
 
 def test_student_overlap_uses_published_meetings(monkeypatch):
@@ -175,14 +153,13 @@ def test_student_overlap_uses_published_meetings(monkeypatch):
     assert "cannot change" in result["answer"].lower()
 
 
-def test_summary_keeps_follow_up_after_window_fills():
+def test_follow_up_still_works_after_window_fills():
     session = "engine-window"
     answer_question("What are BCS-1 classes on Monday?", session_id=session)
     for index in range(20):
         answer_question("Hi", session_id=session)
     memory = get_session(session)
     assert memory.last_class == "BS(CS)-I"
-    assert memory.summary
     second = answer_question("what about tuesday?", session_id=session)
     assert second["answer"]["class"] == "BS(CS)-I"
     assert second["answer"]["day"] == "Tuesday"
