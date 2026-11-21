@@ -102,3 +102,45 @@ def test_a_follow_up_about_he_does_not_ask_do_you_mean_again():
     assert first["confirm_name"] is True
     again = ask("which courses he is teaching", "rz-6")
     assert again["type"] == "teacher_profile" and again["confirm_name"] is False
+
+
+@pytest.mark.parametrize("identity", [None, STUDENT])
+def test_he_after_an_unclear_name_asks_which_teacher(identity):
+    """Live chain, 21 Nov: "who is kamran" (two Kamrans) then "when is he free on monday?" showed the
+    student's own timetable."""
+    session = f"chain-1-{bool(identity)}"
+    get_session(session).__init__()
+    first = ask("i am talking about sir rizwan", session, identity)
+    assert first["type"] == "teacher_ambiguous"
+    for question in ("when is he free on monday?", "and his next class?"):
+        answer = ask(question, session, identity)
+        assert isinstance(answer, str) and answer.startswith("Which teacher do you mean"), question
+        assert "Shahzad Rizwan" in answer and "Muhammad Rizwan Khan" in answer
+    ask("shahzad rizwan", session, identity)
+    monday = ask("when is he free on monday?", session, identity)
+    assert monday["type"] == "teacher_availability" and monday["teacher"] == "Shahzad Rizwan"
+
+
+def test_who_teaches_the_first_one_stays_in_the_class_just_shown(monkeypatch):
+    """Live chain, 21 Nov: "my classes on monday" then "who teaches the first one?" listed every class."""
+    import json
+
+    from chatbot import answer_pipeline as pipeline
+
+    session = "chain-2"
+    get_session(session).__init__()
+    ask("my classes on monday", session, STUDENT)
+    assert get_session(session).last_class == "BS(CS)-II"
+    monkeypatch.setattr(pipeline, "_run_understanding_chain",
+                        lambda message: json.dumps({"intent": "subject_teachers", "subject": "Discrete Structures"}))
+    answer = ask("who teaches the first one?", session, STUDENT)
+    assert "BS(CS)-II" in str(answer) and "Umar Zia" in str(answer)
+
+
+def test_who_teaches_the_first_one_without_the_ai_stays_in_the_class():
+    """Same chain when the AI limit is used up: the backup rules must also stay in the class."""
+    session = "chain-3"
+    get_session(session).__init__()
+    ask("my classes on monday", session, STUDENT)
+    answer = ask("who teaches the first one?", session, STUDENT)
+    assert "BS(CS)-II" in str(answer) and "Umar Zia" in str(answer)

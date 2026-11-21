@@ -303,6 +303,10 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
     if followup is not None:
         memory.add_turn(question, followup)
         return {"answer": followup, "intent": "followup"}
+    which = _which_teacher_question(question, memory)
+    if which is not None:
+        memory.add_turn(question, which)
+        return {"answer": which, "intent": "teacher"}
     understood = _understood_answer(question, session_id, identity, memory)
     result = understood if understood is not None else _answer_from_code(question, session_id, identity)
     return _with_ai_wording(question, result, memory)
@@ -401,6 +405,8 @@ def _understood_answer(question: str, session_id: str, identity: dict | None, me
             memory.add_turn(question, reply)
             return {"answer": reply, "intent": "followup"}
         return None
+    if intent == "subject_teachers" and not understood.get("class") and memory.last_class:
+        understood["class"] = memory.last_class  # the class just shown ("the first one" is in it)
     standard = standard_question(understood)
     print(f"[AI] understood {understood.get('intent')} → {standard!r}")
     if not standard:
@@ -439,6 +445,20 @@ def _with_ai_wording(question: str, result: Dict[str, Any], memory: SessionMemor
 
 
 _TEACHER_REF = re.compile(r"\b(he|him|his|she|her|this teacher|that teacher|the teacher|same teacher)\b")
+
+
+def _which_teacher_question(question: str, memory: SessionMemory) -> str | None:
+    """After "I found more than one Kamran", a "he / his" question can't be answered yet: ask which one."""
+    candidates = memory.last_teacher_candidates
+    if memory.last_teacher or len(candidates) < 2 or not _TEACHER_REF.search(question.lower()):
+        return None
+    try:
+        if tt.detect_teacher(question):
+            return None  # a name is given this time; answer normally
+    except UniversityDataUnavailable:
+        return None
+    names = ", ".join(candidates[:-1]) + f" or {candidates[-1]}"
+    return f"Which teacher do you mean: {names}? Please write the full name."
 
 
 def _teacher_followup(question: str, memory: SessionMemory) -> Any:

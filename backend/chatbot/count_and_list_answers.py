@@ -304,6 +304,17 @@ def answer_catalog(question: str, memory, teacher: str | None = None) -> tuple[s
         subject = _subject_from_text(question, catalog, memory)
         if not subject:
             return "Tell me the subject name to list the published teachers.", "catalog"
+        # "who teaches the first one?" right after a class's timetable: the subject came from that
+        # answer, so answer for that class only, not every class that has the subject.
+        last_class = getattr(memory, "last_class", None)
+        if last_class and subject.lower() not in (question or "").lower():
+            in_class = sorted({
+                row.teacher for row in catalog.meetings
+                if row.class_key == last_class and row.subject.lower() == subject.lower() and row.teacher != "N/A"
+            })
+            if in_class:
+                teachers = in_class[0] if len(in_class) == 1 else ", ".join(in_class[:-1]) + f" and {in_class[-1]}"
+                return f"In {last_class}, {subject} is taught by {teachers}.", "teacher"
         names = sorted({
             row.teacher for row in catalog.meetings
             if row.subject.lower() == subject.lower() and row.teacher != "N/A"

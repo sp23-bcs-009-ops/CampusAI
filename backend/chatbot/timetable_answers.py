@@ -144,6 +144,8 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
     if teacher is None:
         ambiguous = tt.teacher_name_candidates(question) or tt.teacher_word_matches(question)
         if len(ambiguous) > 1:
+            memory.last_teacher = None  # "he" must not mean an older teacher now
+            memory.last_teacher_candidates = list(ambiguous)
             return {
                 "type": "teacher_ambiguous",
                 "message": "I found more than one matching teacher. Please ask with the full name.",
@@ -174,6 +176,7 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         return text
 
     memory.last_teacher = teacher
+    memory.last_teacher_candidates = []
 
     if _asks_about_teacher(q_lower, teacher):
         return teacher_profile(teacher, question)
