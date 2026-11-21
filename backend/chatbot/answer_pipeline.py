@@ -129,7 +129,8 @@ def _run_chain(system_prompt: str, user_input: str, memory: SessionMemory) -> st
 def _run_facts_chain(question: str, facts: str, memory: SessionMemory) -> str:
     return _run_chain(
         FACTS_PROMPT,
-        f"Question: {question}\n\nFACTS (from the university timetable and records):\n{facts}",
+        (f"User: {memory.user_label}\n" if memory.user_label else "")
+        + f"Question: {question}\n\nFACTS (from the university timetable and records):\n{facts}",
         memory,
     )
 
@@ -306,6 +307,7 @@ def answer_question(question: str, session_id: str = "default", identity: dict |
     memory = get_session(session_id)
     if identity is None and settings.guest_university_info_only:
         return _guest_answer(question, session_id, memory)
+    memory.user_label = _user_label(identity)
     followup = _followup_from_last_facts(question, memory)
     if followup is not None:
         memory.add_turn(question, followup)
@@ -358,6 +360,14 @@ def _guest_answer(question: str, session_id: str, memory: SessionMemory) -> Dict
     return {"answer": GUEST_SIGN_IN, "intent": "sign_in_required"}
 
 
+def _user_label(identity: dict | None) -> str:
+    """Who is asking, in words the AI can use ("teacher Shahzad Rizwan")."""
+    if not identity or identity.get("type") not in {"student", "teacher", "staff"}:
+        return ""
+    name = str(identity.get("fullName") or identity.get("name") or "").strip()
+    return f"{identity['type']} {name}".strip()
+
+
 def _run_understanding_chain(message: str) -> str:
     """One AI call that says what the message asks for (JSON). No chat history: the context is in the message."""
     return _run_chain(UNDERSTAND_PROMPT, message, SessionMemory())
@@ -390,7 +400,7 @@ def _understood_answer(question: str, session_id: str, identity: dict | None, me
     context = (
         f"Today: {tt.campus_now().strftime('%A, %d %B %Y')}. The user is {who}.\n"
         f"Previous: teacher={memory.last_teacher or ''}; class={memory.last_class or ''}; "
-        f"room={memory.last_room or ''}\n"
+        f"room={memory.last_room or ''}; day={memory.last_day or ''}; time={memory.last_time or ''}\n"
         f"Message: {question}"
     )
     try:
@@ -401,6 +411,19 @@ def _understood_answer(question: str, session_id: str, identity: dict | None, me
     if not understood:
         return None
     intent = understood["intent"]
+    # Remember the day and time the AI understood, so a later "at that time" can use them.
+    if understood.get("day", "").lower() in {d.lower() for d in tt.WEEK_DAYS}:
+        memory.last_day = understood["day"].capitalize()
+    if understood.get("time"):
+        memory.last_time = understood["time"]
+    if intent == "action_request":
+        # The AI decided the user wants something done that the bot can't do; it says so in its own words.
+        reply = _ai_reply(question, memory, "I can't do that; I can only share campus information. "
+                                            "Please contact your department office.")
+        memory.add_turn(question, reply)
+        return {"answer": reply, "intent": "general"}
+    if intent == "events_and_announcements":
+        return _events_and_announcements(question, memory)
     if intent == "off_topic":
         if has_campus_anchor(question) or _class_key_from_text(question):
             return None  # says something about the campus: let the rules decide
@@ -452,6 +475,19 @@ def _with_ai_wording(question: str, result: Dict[str, Any], memory: SessionMemor
 
 
 _TEACHER_REF = re.compile(r"\b(he|him|his|she|her|this teacher|that teacher|the teacher|same teacher)\b")
+
+
+def _events_and_announcements(question: str, memory: SessionMemory) -> Dict[str, Any]:
+    """Both lists, when the AI understood the question asks for both."""
+    try:
+        events = _event_lines(university_data.firebase_records("events"), question)
+        notices = university_data.firebase_records("announcements")
+    except UniversityDataUnavailable as exc:
+        return {"answer": str(exc), "intent": "unavailable"}
+    answer = events + "\n\n" + (_announcement_lines(notices) if notices
+                                 else "There are no emergency announcements right now.")
+    memory.add_turn(question, answer)
+    return {"answer": answer, "intent": "events"}
 
 
 def _which_teacher_question(question: str, memory: SessionMemory) -> str | None:

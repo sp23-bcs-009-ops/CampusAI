@@ -261,7 +261,10 @@ def handle_teacher(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         memory.last_room = rooms[0] if len(rooms) == 1 else None
         memory.last_classes = classes
 
-    return {"type": "teacher_availability", "teacher": teacher, "days": days_data}
+    card = {"type": "teacher_availability", "teacher": teacher, "days": days_data}
+    if slot_filter and rq.time_label:
+        card["when"] = rq.time_label  # "at 14:00": the answer covers that time, not the whole day
+    return card
 
 
 def handle_rooms_all(rq: RoutedQuestion, memory: SessionMemory) -> Any:
@@ -334,7 +337,10 @@ def handle_room(rq: RoutedQuestion, memory: SessionMemory) -> Any:
         free_slots = [s for s in data["free"] if not slot_filter or slot_filter(s)]
         days_data.append({"day": d, "free": free_slots, "busy": busy_list})
 
-    return {"type": "room_availability", "room": room, "days": days_data}
+    card = {"type": "room_availability", "room": room, "days": days_data}
+    if slot_filter and rq.time_label:
+        card["when"] = rq.time_label
+    return card
 
 
 def handle_room_unknown(rq: RoutedQuestion, memory: SessionMemory) -> Any:

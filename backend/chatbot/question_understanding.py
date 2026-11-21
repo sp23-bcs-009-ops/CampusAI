@@ -98,18 +98,20 @@ def standard_question(u: dict) -> str | None:
         if intent == "teacher_next":
             return f"when is {teacher}'s next class?"
         if intent == "teacher_day":
-            return f"is {teacher} free{_on(day or 'today')}?"
+            return f"is {teacher} free{_on(day or 'today')}{_time(u.get('time', ''))}?"
         return None
 
     if intent == "class_day":
         cls = _class(u.get("class", ""))
-        return f"{cls} timetable{_on(day or 'today')}" if cls else None
+        return f"{cls} timetable{_on(day or 'today')}{_time(u.get('time', ''))}" if cls else None
 
     if intent in {"room_day", "room_now"}:
         room = _room(u.get("room", ""))
         if not room:
             return None
-        return f"is {room} free right now?" if intent == "room_now" else f"is {room} free{_on(day or 'today')}?"
+        if intent == "room_now":
+            return f"is {room} free right now?"
+        return f"is {room} free{_on(day or 'today')}{_time(u.get('time', ''))}?"
 
     if intent == "free_rooms":
         return f"which rooms are free{_time(u.get('time', ''))}{_on(day or 'today')}?"

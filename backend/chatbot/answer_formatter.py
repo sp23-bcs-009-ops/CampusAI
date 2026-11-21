@@ -149,7 +149,7 @@ def _and(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" and {items[-1]}"
 
 
-def _availability_lines(who: str, days: list[dict], who_key: str, busy_word: str) -> list[str]:
+def _availability_lines(who: str, days: list[dict], who_key: str, busy_word: str, when: str = "") -> list[str]:
     """Free/busy in plain sentences, free time first: what people usually ask.
 
         Shahzad Rizwan is free on Monday 11:30–16:30.
@@ -167,6 +167,18 @@ def _availability_lines(who: str, days: list[dict], who_key: str, busy_word: str
             busy.append(f"• {_time(block.get('slot'))} {subject or 'class'}" + (f" ({detail})" if detail else ""))
         if len(days) > 1 and lines:
             lines.append("")
+        if when:
+            # Only the asked time was checked ("at 14:00"), so the sentence is about that time.
+            if not busy:
+                lines.append(f"{who} is free {when} on {name}.")
+            elif not free:
+                lines.append(f"{who} is busy {when} on {name}.")
+            else:
+                lines.append(f"{who} is free {when} on {name} {_and(free)}.")
+            if busy:
+                lines.append(f"{busy_word} {when} on {name}:")
+                lines.extend(busy)
+            continue
         if free and not busy:
             lines.append(f"{who} is free all day on {name} (no classes).")
         elif free:
@@ -218,10 +230,12 @@ def card_to_text(card: dict) -> str:
         lines = _schedule_lines(f"📍 {card.get('class')} — rooms", card.get("rooms") or [])
 
     elif kind == "teacher_availability":
-        lines = _availability_lines(f"👨‍🏫 {card.get('teacher')}", card.get("days") or [], "rooms", "Teaching")
+        lines = _availability_lines(f"👨‍🏫 {card.get('teacher')}", card.get("days") or [], "rooms", "Teaching",
+                                    str(card.get("when") or ""))
 
     elif kind == "room_availability":
-        lines = _availability_lines(f"📍 {card.get('room')}", card.get("days") or [], "teachers", "In use")
+        lines = _availability_lines(f"📍 {card.get('room')}", card.get("days") or [], "teachers", "In use",
+                                    str(card.get("when") or ""))
 
     elif kind == "rooms_free":
         rooms = card.get("rooms") or []
