@@ -315,6 +315,13 @@ export async function saveUserProfile(email, profile) {
   await fsSet(`users/${email.replace(/\./g, '_')}`, profile);
 }
 
+// Saves only the given profile fields (e.g. fullName) and leaves every other field as it is.
+// The chatbot reads the profile from Firestore, so My Profile edits must reach it too.
+export async function updateUserProfileFields(email, fields) {
+  if (!email || !fields || Object.keys(fields).length === 0) return;
+  await fsUpdate(`users/${email.replace(/\./g, '_')}`, fields);
+}
+
 export async function getUserProfile(email) {
   return await fsGet(`users/${email.replace(/\./g, '_')}`);
 }

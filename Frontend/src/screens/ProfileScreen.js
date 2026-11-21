@@ -14,6 +14,15 @@ import {
   isAlwaysOnTestAccount,
   isDeveloperModeEnabled,
 } from '../utils/developerClock';
+import { updateUserProfileFields } from '../firebase/firestore';
+
+// The app keeps the profile on the device; the chatbot reads it from Firestore.
+// Send the edited fields there too. A failure (offline, guest account) never blocks the local save.
+function syncProfileFields(user, fields) {
+  if (!user?.email || user.isAnonymous) return;
+  updateUserProfileFields(user.email, fields)
+    .catch(error => console.warn('Profile saved on this device, but not synced to Firestore.', error));
+}
 
 export default function ProfileScreen({ user, onUpdate, onToggleNotifications, onRoleChange, onLogout, dark, subjectsList = [], availableSubjects = [] }) {
   const toSubjectName = (s) => (typeof s === 'string' ? s : s?.subject || '');
@@ -57,10 +66,15 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   function saveProfile() {
     if (!fullName.trim()) return;
     onUpdate({ ...user, fullName, dob, semester: sem, subjects: normalizeSubjects(mySubjects) });
+    syncProfileFields(user, { fullName, dob, semester: sem, subjects: normalizeSubjects(mySubjects) });
     setSaved(true); setEditing(false);
     setTimeout(() => setSaved(false), 2500);
   }
-  function savePhone() { setPhone(tmpPhone); onUpdate({ ...user, phone: tmpPhone }); setEditPhone(false); }
+  function savePhone() {
+    setPhone(tmpPhone); onUpdate({ ...user, phone: tmpPhone });
+    syncProfileFields(user, { phone: tmpPhone });
+    setEditPhone(false);
+  }
   function toggleSubject(subj) {
     setMySubjects(prev => prev.includes(subj) ? prev.filter(s => s !== subj) : [...prev, subj]);
   }
@@ -72,6 +86,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   }
   function saveSubjects() {
     onUpdate({ ...user, subjects: normalizeSubjects(mySubjects) });
+    syncProfileFields(user, { subjects: normalizeSubjects(mySubjects) });
     setEditSubjects(false);
     setShowAddSubject(false);
     setAddSubjectSearch('');
@@ -79,6 +94,7 @@ export default function ProfileScreen({ user, onUpdate, onToggleNotifications, o
   }
   function saveSemester() {
     onUpdate({ ...user, semester: sem });
+    syncProfileFields(user, { semester: sem });
     setEditSem(false);
     setSaved(true); setTimeout(() => setSaved(false), 2500);
   }
