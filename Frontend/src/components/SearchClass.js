@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, Modal, Platform,
+  StyleSheet, Modal,
 } from 'react-native';
 import { C } from '../constants/colors';
 import { DEPT_MAP, DEPT_MAX_SEM, DEPT_FLOOR_ROOMS } from '../constants/config';
-import DateTimePicker from './DateTimePickerAdapter';
 import { roomDepartment } from '../utils/helpers';
-import { getAvailableRoomsForTime } from '../utils/availableRooms';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // Weekly Timetable orders days Mon → Sun; search results follow the same order.
@@ -41,7 +39,6 @@ function lecNumOf(slot) {
  */
 export default function SearchClass({ dark, timetable, lectureSlots, now, mode = 'regular' }) {
   const [show, setShow] = useState(false);
-  const [searchMode, setSearchMode] = useState('classes');
 
   // Filters
   const [timeMode, setTimeMode] = useState('');          // '' | 'now' | 'specify'
@@ -55,10 +52,6 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
   const [room, setRoom] = useState('');
   const [subjectSearch, setSubjectSearch] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
-  const [freeTime, setFreeTime] = useState('');
-  const [freeDate, setFreeDate] = useState(() => now || new Date());
-  const [showFreeDatePicker, setShowFreeDatePicker] = useState(false);
-  const [freeDay, setFreeDay] = useState('');
 
   // null = user has not pressed Search yet (no results rendered)
   const [results, setResults] = useState(null);
@@ -140,20 +133,6 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
 
   // Run the search — only called from the Search button.
   function runSearch() {
-    if (searchMode === 'free') {
-      const day = freeDay;
-      const parts = freeTime.split('|');
-      const start = mode === 'exam' ? parts[0] : parts[1];
-      const end = mode === 'exam' ? parts[1] : parts[2];
-      if (!day || !start || !end) {
-        setResults([]);
-        return;
-      }
-      const available = getAvailableRoomsForTime({ timetable, day, start, end });
-      setResults(available.map(({ room }) => ({ room, day, start, end })));
-      setVisibleCount(available.length);
-      return;
-    }
     let timeDay = null;
     let timeLec = null;
     let customDays = [];
@@ -207,20 +186,16 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
   }
 
   function reset() {
-    setSearchMode('classes');
     setTimeMode(''); setDays([]); setLecs([]);
     setTeacherSearch(''); setSelectedTeacher('');
     setDept(''); setSem('');
     setBuilding(''); setRoom('');
-    setFreeTime('');
-    setShowFreeDatePicker(false);
-    setFreeDay('');
     setSubjectSearch(''); setSelectedSubject('');
     setResults(null);
     setVisibleCount(10);
   }
 
-  const hasFilter = searchMode === 'free' ? freeDay || freeTime : timeMode || days.length || lecs.length || selectedTeacher || dept || sem || room || selectedSubject;
+  const hasFilter = timeMode || days.length || lecs.length || selectedTeacher || dept || sem || room || selectedSubject;
 
   const roomsByBuilding = useMemo(() => {
     const groups = {};
@@ -245,11 +220,6 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
       .map(slot => Number(slot.semester ?? slot.sem))
       .filter(value => Number.isInteger(value) && value > 0))].sort((a, b) => a - b)
   ), [allSlots, dept]);
-  const freePeriods = useMemo(() => mode === 'exam'
-    ? [...new Set(allSlots.map(slot => `${slot.start || ''}|${slot.end || ''}`).filter(value => value !== '|'))].sort()
-    : [...new Set(allSlots.map(slot => `${lecNumOf(slot) || ''}|${slot.start || ''}|${slot.end || ''}`).filter(value => value.split('|').length === 3 && value.split('|').slice(1).every(Boolean)))].sort(), [allSlots, mode]);
-
-
   const chipStyle = (active) => [
     styles.chip,
     {
@@ -286,8 +256,8 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
         <Text style={{ color: ts, marginLeft: 'auto' }}>›</Text>
       </TouchableOpacity>
 
-      <Modal visible={show} transparent animationType="slide" onRequestClose={() => { setShow(false); setShowFreeDatePicker(false); }}>
-        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => { setShow(false); setShowFreeDatePicker(false); }} />
+      <Modal visible={show} transparent animationType="slide" onRequestClose={() => setShow(false)}>
+        <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShow(false)} />
         <ScrollView style={[styles.popup, { backgroundColor: cardBg, borderTopColor: bdr }]} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           <View style={[styles.handle, { backgroundColor: ts }]} />
           <Text style={[styles.title, { color: tp }]}>Search Class</Text>
@@ -301,65 +271,6 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
 
             {/* Time: Now / Specify time */}
             <Text style={[styles.filterLabel, { color: ts }]}>TIME</Text>
-            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-              {[[ 'classes', 'Search Timetable' ], [ 'free', 'Find Free Slot' ]].map(([value, label]) => (
-                <TouchableOpacity key={value} style={chipStyle(searchMode === value)} onPress={() => { setSearchMode(value); setShowFreeDatePicker(false); setResults(null); }}>
-                  <Text style={chipText(searchMode === value)}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {searchMode === 'free' ? <View style={{ marginBottom: 8 }}>
-              {mode !== 'exam' && <View style={{ marginBottom: 8 }}>
-                <Text style={[styles.filterLabel, { color: ts }]}>SPECIFIC DATE (OPTIONAL)</Text>
-                {Platform.OS === 'web' ? (
-                  <DateTimePicker value={freeDate} mode="date" onChange={(_, date) => {
-                    if (!date) return;
-                    setFreeDate(date);
-                    setFreeDay(DAYS[date.getDay()]);
-                    setResults(null);
-                  }} />
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => setShowFreeDatePicker(true)}
-                      style={[styles.dateButton, { borderColor: bdr, backgroundColor: dark ? '#0A0A1E' : '#FFFFFF' }]}>
-                      <Text style={{ color: tp, fontSize: 12 }}>{freeDate.toLocaleDateString()}</Text>
-                      <Text style={{ color: ts, fontSize: 11 }}>Choose date</Text>
-                    </TouchableOpacity>
-                    {showFreeDatePicker && (
-                      <View style={{ marginTop: 8 }}>
-                        <DateTimePicker value={freeDate} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={(_, date) => {
-                          if (Platform.OS !== 'ios') setShowFreeDatePicker(false);
-                          if (!date) return;
-                          setFreeDate(date);
-                          setFreeDay(DAYS[date.getDay()]);
-                          setResults(null);
-                        }} />
-                        {Platform.OS === 'ios' && (
-                          <TouchableOpacity onPress={() => setShowFreeDatePicker(false)} style={[styles.dateDoneButton, { backgroundColor: C.purple }]}>
-                            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>Done</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>}
-              <FilterSection title={mode === 'exam' ? 'DATE' : 'DAY / WEEKDAY'}>
-                {(mode === 'exam' ? examDates : DAYS).map(day => (
-                  <TouchableOpacity key={day} style={chipStyle(freeDay === day)} onPress={() => { setFreeDay(day); setResults(null); }}>
-                    <Text style={chipText(freeDay === day)}>{day}</Text>
-                  </TouchableOpacity>
-                ))}
-              </FilterSection>
-              <FilterSection title="TIME PERIOD">
-                {freePeriods.map(period => {
-                  const parts = period.split('|');
-                  const label = mode === 'exam' ? `${parts[0]}–${parts[1]}` : `Lec ${parts[0]} · ${parts[1]}–${parts[2]}`;
-                  return <TouchableOpacity key={period} style={chipStyle(freeTime === period)} onPress={() => { setFreeTime(period); setResults(null); }}><Text style={chipText(freeTime === period)}>{label}</Text></TouchableOpacity>;
-                })}
-              </FilterSection>
-            </View> : <>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
               {mode !== 'exam' && <TouchableOpacity
                 style={chipStyle(timeMode === 'now')}
@@ -539,7 +450,7 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
               )}
             </View>
 
-            </>}
+
             {/* Actions */}
             <TouchableOpacity onPress={runSearch} style={[styles.searchBtn, { backgroundColor: C.purple }]}>
               <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>🔍 Search</Text>
@@ -562,27 +473,9 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
           ) : (
             <>
               <Text style={[styles.resultsLabel, { color: ts }]}>
-                {results.length} {searchMode === 'free' ? (results.length === 1 ? 'room' : 'rooms') : (results.length === 1 ? 'class' : 'classes')} found
-                {searchMode === 'free' ? ' (selected time)' : hasFilter ? ' (filtered)' : ' (all classes)'}
+                {results.length} {results.length === 1 ? 'class' : 'classes'} found
+                {hasFilter ? ' (filtered)' : ' (all classes)'}
               </Text>
-
-              {searchMode === 'free' && results.map(({ room, day, start, end }) => (
-                <View key={room} style={[styles.ttRow, { backgroundColor: cardBg, borderColor: bdr, borderLeftColor: '#16A34A' }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: tp, fontSize: 12, fontWeight: '800' }}>{room}</Text>
-                    <Text style={{ color: ts, fontSize: 10, marginTop: 3 }}>{day} · {start}–{end} · Free</Text>
-                  </View>
-                </View>
-              ))}
-
-              {searchMode === 'classes' && results.length === 0 && (
-                <Text style={{ color: ts, fontSize: 14, marginTop: 8 }}>No classes match these filters. Try removing one.</Text>
-              )}
-              {searchMode === 'free' && results.length === 0 && (
-                <Text style={{ color: ts, fontSize: 14, marginTop: 8 }}>No rooms are free for that time, or choose a day and time period first.</Text>
-              )}
-
-              {searchMode === 'classes' && <>
               {results.length === 0 && (
                 <Text style={{ color: ts, fontSize: 14, marginTop: 8 }}>
                   No classes match these filters. Try removing one.
@@ -647,11 +540,10 @@ export default function SearchClass({ dark, timetable, lectureSlots, now, mode =
                   </Text>
                 </TouchableOpacity>
               )}
-              </>}
             </>
           )}
 
-          <TouchableOpacity onPress={() => { setShow(false); setShowFreeDatePicker(false); }} style={[styles.closeBtn, { backgroundColor: C.purple }]}>
+          <TouchableOpacity onPress={() => setShow(false)} style={[styles.closeBtn, { backgroundColor: C.purple }]}>
             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Close</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -665,8 +557,6 @@ const styles = StyleSheet.create({
   /* Trigger button — mirrors HomeScreen's ttBtn */
   ttBtn: { marginHorizontal: 14, marginBottom: 12, padding: 10, borderRadius: 12, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   ttBtnText: { fontSize: 12, fontWeight: '700' },
-  dateButton: { minHeight: 40, borderWidth: 1, borderRadius: 9, paddingHorizontal: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dateDoneButton: { alignSelf: 'flex-end', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 8, marginTop: 6 },
 
   /* Bottom sheet — mirrors RoomPopup */
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(26,15,74,0.5)' },

@@ -25,7 +25,10 @@ export const STUDENT_DEPARTMENTS = [
 ];
 
 // Max semesters per department
-export const DEPT_MAX_SEM = { cs: 8, se: 8, ai: 4, math: 8, ee: 8 };
+// Every undergraduate program spans eight semesters. Departments with annual
+// admissions may only have four active cohorts in a given timetable; the other
+// semester documents remain absent until the timetable includes them.
+export const DEPT_MAX_SEM = { cs: 8, se: 8, ai: 8, ce: 8, math: 8, ee: 8 };
 
 export const SEM_LABELS = ['','1st','2nd','3rd','4th','5th','6th','7th','8th'];
 
