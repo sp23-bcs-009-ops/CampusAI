@@ -25,7 +25,6 @@ import UniNewsScreen from './src/screens/UniNewsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ChatScreen from './src/screens/ChatScreen';
 import GuestModeScreen from './src/screens/GuestModeScreen';
-import InternalScreen from './src/screens/InternalScreen';
 import TeacherDirectoryScreen from './src/screens/TeacherDirectoryScreen';
 import EmergencyAnnouncements from './src/components/EmergencyAnnouncements';
 import useEmergencyAnnouncements from './src/hooks/useEmergencyAnnouncements';
@@ -647,12 +646,6 @@ export default function App() {
             onSelectDeveloperTeacher={handleSelectDeveloperTeacher}
             onLogout={handleLogout}
           />
-        );
-      case 'internal':
-        return (
-          <View style={{ flex: 1, backgroundColor: dark ? '#0A0A1E' : '#F5F4FF' }}>
-            <InternalScreen user={viewUser} dark={dark} />
-          </View>
         );
       default:
         return null;

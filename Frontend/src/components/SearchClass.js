@@ -22,21 +22,6 @@ function lecNumOf(slot) {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Search Class — filter the active timetable, results appear only after the
- * Search button is pressed. Filter layout reuses the staff search patterns
- * from the Weekly Timetable modal:
- *   Time        → "Now" / "Specify time" (Day + Lec# chips appear after)
- *   Department  → All / DEPT_MAP chips          (independent)
- *   Semester    → All / Sem chips               (independent)
- *   Teacher     → search bar with live suggestions
- *   Room        → building first, then that building's rooms
- *   Subject     → search bar with live suggestions
- * Results render in the Weekly Timetable modal's row style, 10 at a time
- * with a "More" button to load the next batch.
- * Empty filters mean "no restriction", so the original five question shapes
- * (when / who / which class / where / what subject) are all covered.
- */
 export default function SearchClass({ dark, timetable, lectureSlots, now, mode = 'regular' }) {
   const [show, setShow] = useState(false);
 

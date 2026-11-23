@@ -352,6 +352,7 @@ export default function ClassScreen({
         editNotif={editItem}
         lectureSlots={lectureSlots}
         subjectsMap={subjectsMap}
+        timetables={timetables}
         user={user}
         teacherAssignments={teacherAssignments}
         getAvailableRooms={getAvailableRooms}

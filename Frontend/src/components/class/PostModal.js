@@ -9,11 +9,14 @@ import { getFloorMapRooms } from '../../utils/availableRooms';
 import { toSubjectName } from '../../utils/helpers';
 import { ErrBanner, PostModalShell, PrimaryButton, SectionLabel, Chip } from '../ui';
 
-const DEPT_LIST = [
-  { key: 'cs', label: 'CS — Computer Science' },
-  { key: 'se', label: 'SE — Software Engineering' },
-  { key: 'ai', label: 'AI — Artificial Intelligence' },
-];
+const DEPT_LABELS = {
+  cs: 'CS — Computer Science',
+  se: 'SE — Software Engineering',
+  ai: 'AI — Artificial Intelligence',
+  ce: 'CE — Computer Engineering',
+  math: 'Math — Mathematics',
+  ee: 'EE — Electrical/Electronic Engineering',
+};
 
 function parseLocalDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
@@ -37,7 +40,7 @@ function formatLocalDate(value) {
  */
 export default function PostModal({
   visible, dark, onClose, onSubmit, editNotif, lectureSlots, subjectsMap,
-  user, getAvailableRooms, teacherAssignments = [],
+  user, getAvailableRooms, teacherAssignments = [], timetables = {},
 }) {
   const slots = lectureSlots || FALLBACK_LECTURE_SLOTS;
   const isEdit = !!editNotif;
@@ -89,11 +92,35 @@ export default function PostModal({
     String(assignment.dept).toLocaleLowerCase() === String(dept).toLocaleLowerCase()
       && Number(assignment.semester) === Number(semester)
   );
+  const timetableSubjects = Object.values(timetables?.[semester] || {}).flatMap(roomSlots =>
+    (Array.isArray(roomSlots) ? roomSlots : [])
+      .filter(slot => String(slot?._dept || slot?.dept || slot?.department || '').toLowerCase() === String(dept).toLowerCase())
+      .map(slot => slot?.subject)
+      .filter(Boolean)
+  );
   const subjectOptions = user?.type === 'teacher'
     ? (selectedTeacherAssignment?.subjects || [])
     : (dept && semester && subjectsMap)
-      ? Array.from(new Set((subjectsMap[dept]?.[semester] || []).map(toSubjectName).filter(Boolean)))
+      ? Array.from(new Set([...(subjectsMap[dept]?.[semester] || []), ...timetableSubjects].map(toSubjectName).filter(Boolean)))
       : [];
+
+  // Use departments and semesters present in the active Firebase timetable.
+  const activeDeptSemesters = {};
+  for (const [sem, rooms] of Object.entries(timetables || {})) {
+    for (const slotsInRoom of Object.values(rooms || {})) {
+      for (const slot of Array.isArray(slotsInRoom) ? slotsInRoom : []) {
+        const key = String(slot?._dept || slot?.dept || slot?.department || '').toLowerCase();
+        const semesterNumber = Number(slot?.sem || sem);
+        if (!key || !Number.isInteger(semesterNumber) || semesterNumber < 1) continue;
+        (activeDeptSemesters[key] ||= new Set()).add(semesterNumber);
+      }
+    }
+  }
+  const deptList = Object.keys(activeDeptSemesters).sort().map(key => ({
+    key,
+    label: DEPT_LABELS[key] || key.toUpperCase(),
+  }));
+  const availableSemesters = dept ? [...(activeDeptSemesters[dept] || [])].sort((a, b) => a - b) : [];
 
   const semCount = dept ? (DEPT_MAX_SEM[dept] || 8) : 8;
 
@@ -258,7 +285,7 @@ export default function PostModal({
                   <>
                     <SectionLabel text="Department" dark={dark} />
                     <View style={styles.chipRow}>
-                      {DEPT_LIST.map(d => (
+                      {deptList.map(d => (
                         <Chip key={d.key} label={d.label} active={dept === d.key}
                           onPress={() => { setDept(d.key); setSemester(''); setSubject(''); }}
                           dark={dark} />
@@ -267,7 +294,7 @@ export default function PostModal({
                     {dept && <>
                       <SectionLabel text="Semester" dark={dark} style={{ marginTop: 12 }} />
                       <View style={styles.chipRow}>
-                        {Array.from({ length: semCount }, (_, i) => i + 1).map(n => (
+                        {(availableSemesters.length ? availableSemesters : Array.from({ length: semCount }, (_, i) => i + 1)).map(n => (
                           <Chip key={n} label={`Sem ${n}`} active={semester === String(n)}
                             onPress={() => { setSemester(String(n)); setSubject(''); }}
                             dark={dark} />
